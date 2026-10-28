@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#070912">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Chat Plays Tetris</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -58,6 +60,34 @@ kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 5
 .spinner { width: 46px; height: 46px; margin: 0 auto 16px; border-radius: 50%; border: 4px solid rgba(255,255,255,.12); border-top-color: var(--accent); animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .netwarn { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: var(--warn); color: #fff; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 14px; }
+
+/* ---------- touch / phone ---------- */
+.touch-only { display: none; }
+html.touch .touch-only { display: block; }
+html.touch .keys-only { display: none !important; }
+html.touch, html.touch body { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+html.touch input { -webkit-user-select: text; user-select: text; font-size: 18px; }
+#touchPads { display: none; }
+html.touch body.playing #touchPads { display: block; }
+html.touch body.playing { touch-action: none; }
+.pad { position: fixed; bottom: calc(10px + env(safe-area-inset-bottom)); display: grid; gap: 8px; z-index: 5; }
+.pad button {
+  font-family: 'Russo One', sans-serif; font-size: 26px; color: #fff; border: 1px solid rgba(255,255,255,.14);
+  border-radius: 16px; background: rgba(40,46,80,.72); touch-action: none; -webkit-user-select: none; user-select: none;
+  display: grid; place-items: center; padding: 0; min-height: 0;
+}
+.pad button.wide { grid-column: 1 / -1; font-size: 17px; letter-spacing: 1px; }
+.pad button.drop { background: rgba(120,60,220,.75); }
+.pad button.on { background: rgba(180,76,255,.85); transform: scale(.96); }
+/* portrait: both pads along the bottom */
+#padL { left: 10px; width: calc(58% - 15px); grid-template-columns: repeat(3, 1fr); grid-template-rows: 48px 72px; }
+#padR { right: 10px; width: calc(42% - 15px); grid-template-columns: repeat(2, 1fr); grid-template-rows: 72px 48px; }
+/* landscape: pads at the sides of the board */
+@media (orientation: landscape) {
+  #padL { left: calc(10px + env(safe-area-inset-left)); width: min(30vw, 250px); grid-template-rows: 44px 76px; }
+  #padR { right: calc(10px + env(safe-area-inset-right)); width: min(24vw, 190px); grid-template-rows: 76px 44px; }
+}
+@media (max-width: 420px) { .card { padding: 20px 16px; } h1 { margin-bottom: 16px; } .controls { font-size: 13px; } }
 </style>
 </head>
 <body>
@@ -70,7 +100,7 @@ kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 5
       <label>Your name <input id="name" maxlength="16" required spellcheck="false" placeholder="your chat name"></label>
       <button type="submit" class="big">Join the match</button>
     </form>
-    <p class="hint">Use your chat name so the stream knows who's who. Keyboard required.</p>
+    <p class="hint">Use your chat name so the stream knows who's who. Works with keyboard or touch.</p>
   </section>
 
   <section id="s-status" class="card hidden">
@@ -81,11 +111,12 @@ kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 5
   <section id="s-lobby" class="card hidden">
     <div class="who">Playing as <b id="lbName"></b></div>
     <button id="readyBtn" class="big ready">I'M READY</button>
-    <p class="hint small">or press <kbd>R</kbd></p>
+    <p class="hint small keys-only">or press <kbd>R</kbd></p>
     <div id="lbInfo" class="info"></div>
     <div class="meter"><div id="lbBar"></div><i id="lbNeed"></i></div>
     <ul id="lbPlayers" class="players"></ul>
-    <table class="controls">
+    <p class="touch-only hint">Tap the buttons at the bottom of the screen. Hold ◀ ▶ ▼ to keep moving. Turning your phone sideways works too.</p>
+    <table class="controls keys-only">
       <tr><td><kbd>A</kbd> <kbd>D</kbd> / <kbd>←</kbd> <kbd>→</kbd></td><td>Move</td></tr>
       <tr><td><kbd>W</kbd> / <kbd>↑</kbd></td><td>Rotate (<kbd>Z</kbd>/<kbd>Q</kbd> counter-clockwise)</td></tr>
       <tr><td><kbd>S</kbd> / <kbd>↓</kbd></td><td>Soft drop</td></tr>
@@ -107,6 +138,20 @@ kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 5
     <p class="hint">Next round's lobby opens in a moment…</p>
   </section>
 </main>
+
+<div id="touchPads">
+  <div id="padL" class="pad">
+    <button data-a="hold" class="wide">HOLD</button>
+    <button data-a="left" aria-label="Move left">◀</button>
+    <button data-a="down" aria-label="Soft drop">▼</button>
+    <button data-a="right" aria-label="Move right">▶</button>
+  </div>
+  <div id="padR" class="pad">
+    <button data-a="rotccw" aria-label="Rotate left">⟲</button>
+    <button data-a="rotcw" aria-label="Rotate right">⟳</button>
+    <button data-a="hard" class="wide drop">DROP</button>
+  </div>
+</div>
 
 <div id="netWarn" class="netwarn hidden">Connection to the stream lost — reconnecting…</div>
 
@@ -615,7 +660,10 @@ kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 5
   const LOCAL = qs.has('local');
   const $ = id => document.getElementById(id);
   const SCREENS = ['join', 'status', 'lobby', 'wait', 'results'];
-  function show(name) { for (const s of SCREENS) $('s-' + s).classList.toggle('hidden', s !== name); }
+  // phones / tablets get on-screen buttons (?touch forces them on, ?keys forces them off)
+  const TOUCH = qs.has('touch') || (!qs.has('keys') && (matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 && !matchMedia('(pointer: fine)').matches));
+  document.documentElement.classList.toggle('touch', TOUCH);
+  function show(name) { for (const s of SCREENS) $('s-' + s).classList.toggle('hidden', s !== name); document.body.classList.toggle('playing', name === null); }
 
   let cid;
   try { cid = sessionStorage.getItem('cpt-cid'); if (!cid) { cid = Math.random().toString(36).slice(2, 12); sessionStorage.setItem('cpt-cid', cid); } }
@@ -782,6 +830,29 @@ kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 5
   });
   addEventListener('blur', () => { if (game) game.releaseAll(); });
 
+  // ---------- touch buttons ----------
+  const canPlay = () => mode === 'game' && game && gameActive && performance.now() >= startAt;
+  document.querySelectorAll('#touchPads button[data-a]').forEach(btn => {
+    const a = btn.dataset.a, holdable = a === 'left' || a === 'right' || a === 'down';
+    let id = null;
+    btn.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      if (id !== null) return;
+      id = e.pointerId; try { btn.setPointerCapture(id); } catch (err) { }
+      btn.classList.add('on');
+      if (canPlay()) { game.press(a); if (navigator.vibrate) try { navigator.vibrate(6); } catch (err) { } }
+    });
+    const up = e => {
+      if (e.pointerId !== id) return;
+      id = null; btn.classList.remove('on');
+      if (holdable && game) game.release(a);
+    };
+    btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up); btn.addEventListener('lostpointercapture', up);
+    btn.addEventListener('contextmenu', e => e.preventDefault());
+  });
+  document.addEventListener('touchmove', e => { if (mode === 'game') e.preventDefault(); }, { passive: false });
+  document.addEventListener('dblclick', e => e.preventDefault());
+
   // ---------- networking of the field ----------
   function sendSnap(force) {
     if (!game || !net) return;
@@ -821,19 +892,83 @@ kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 5
 
     if (!game) { drawIdle(now, W, H); return; }
 
-    const cell = Math.max(8, Math.floor(Math.min((H - 70) / 21, (W - 32) / 23)));
-    const bw = cell * 10, bh = cell * 20;
-    const ox = Math.round((W - cell * 23) / 2), oy = Math.round((H - bh) / 2 + cell * 0.4);
-    const bx = ox + cell * 6.5, nx = bx + bw + cell * 1.5;
+    const left = Math.max(0, endAt - now);
+    const timeTxt = fmt(now < startAt ? endAt - startAt : left), timeCol = left < 15000 && now >= startAt ? '#ff6b7a' : '#fff';
+    let cell, bx, by;
 
-    // board frame
-    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx - 4, oy - 4, bw + 8, bh + 8);
-    ctx.strokeStyle = 'rgba(180,76,255,0.6)'; ctx.lineWidth = 2; ctx.strokeRect(bx - 4, oy - 4, bw + 8, bh + 8);
+    if (!TOUCH) {
+      // ---- desktop: hold + stats left, board centre, next + time right ----
+      cell = Math.max(8, Math.floor(Math.min((H - 70) / 21, (W - 32) / 23)));
+      const bw = cell * 10, bh = cell * 20;
+      const ox = Math.round((W - cell * 23) / 2), oy = Math.round((H - bh) / 2 + cell * 0.4);
+      bx = ox + cell * 6.5; by = oy;
+      const nx = bx + bw + cell * 1.5;
+      drawBoard(bx, by, cell);
+      label('HOLD', ox, oy - cell * 0.3, cell);
+      box(ox, oy, cell * 5, cell * 3.4);
+      T.drawPreview(ctx, game.hold, ox + cell * 2.5, oy + cell * 1.7, cell * 0.85, game.holdUsed ? 0.35 : 1);
+      label('NEXT', nx, oy - cell * 0.3, cell);
+      box(nx, oy, cell * 5, cell * 13.2);
+      game.refill();
+      for (let i = 0; i < 5; i++) T.drawPreview(ctx, game.queue[i], nx + cell * 2.5, oy + cell * (1.6 + i * 2.5), cell * (i === 0 ? 0.9 : 0.72));
+      stat('SCORE', game.score.toLocaleString(), ox, oy + cell * 5, cell, '#fff', 1.25);
+      stat('LEVEL', game.level, ox, oy + cell * 8, cell);
+      stat('LINES', game.lines, ox, oy + cell * 10.6, cell);
+      stat('TIME', timeTxt, nx, oy + cell * 14.6, cell, timeCol);
+      if (rankInfo) stat('RANK', '#' + rankInfo.rank + ' / ' + rankInfo.total, nx, oy + cell * 17.2, cell, rankInfo.rank === 1 ? '#ffd820' : '#fff');
+      ctx.textAlign = 'center'; ctx.fillStyle = '#9aa3c7'; ctx.font = font(cell * 0.6);
+      ctx.fillText(myName, bx + bw / 2, oy - cell * 0.35);
+    } else {
+      // ---- phone: board + narrow side column, touch buttons take the rest ----
+      const a = playArea(W, H);
+      cell = Math.max(6, Math.floor(Math.min(a.w / 14.9, a.h / 20.4)));
+      const bw = cell * 10, bh = cell * 20, cw = cell * 4.4;
+      bx = Math.round(a.x + (a.w - (bw + cell * 0.5 + cw)) / 2);
+      by = Math.round(a.y + (a.h - bh) / 2);
+      const sx = bx + bw + cell * 0.5;
+      drawBoard(bx, by, cell);
+      let y = by;
+      smallLabel('HOLD', sx, y + cell * 0.45, cell); y += cell * 0.6;
+      box(sx, y, cw, cell * 2.6);
+      T.drawPreview(ctx, game.hold, sx + cw / 2, y + cell * 1.3, cell * 0.7, game.holdUsed ? 0.35 : 1); y += cell * 3;
+      smallLabel('NEXT', sx, y + cell * 0.45, cell); y += cell * 0.6;
+      box(sx, y, cw, cell * 6.6);
+      game.refill();
+      for (let i = 0; i < 3; i++) T.drawPreview(ctx, game.queue[i], sx + cw / 2, y + cell * (1.2 + i * 2.1), cell * (i === 0 ? 0.72 : 0.58));
+      y += cell * 7.1;
+      const items = [['SCORE', game.score.toLocaleString(), '#fff'], ['TIME', timeTxt, timeCol], ['LEVEL', game.level, '#fff'], ['LINES', game.lines, '#fff']];
+      if (rankInfo) items.push(['RANK', '#' + rankInfo.rank + '/' + rankInfo.total, rankInfo.rank === 1 ? '#ffd820' : '#fff']);
+      for (const [n, v, c] of items) { statFit(n, v, sx, y, cw, cell, c); y += cell * 1.55; }
+    }
+
+    const bw = cell * 10, bh = cell * 20;
+    // floaters
+    for (let i = floaters.length - 1; i >= 0; i--) {
+      const f = floaters[i], age = (now - f.t) / 1400;
+      if (age > 1) { floaters.splice(i, 1); continue; }
+      ctx.globalAlpha = 1 - age * age;
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+      const parts = f.text.split(' · ');
+      parts.forEach((p, k) => { ctx.font = font(cell * (k === 0 ? 0.85 : 0.6)); ctx.fillText(p, bx + bw / 2, by + bh * 0.38 - age * cell * 2 + k * cell * 0.85); });
+      if (f.pts) { ctx.font = font(cell * 0.6); ctx.fillStyle = '#ffd820'; ctx.fillText('+' + f.pts.toLocaleString(), bx + bw / 2, by + bh * 0.38 - age * cell * 2 + parts.length * cell * 0.85); }
+      ctx.globalAlpha = 1;
+    }
+
+    // overlays
+    if (now < startAt) banner(String(Math.ceil((startAt - now) / 1000)), 'Get ready!', bx, by, bw, bh, cell);
+    else if (now - startAt < 700 && game.active) banner('GO!', '', bx, by, bw, bh, cell);
+    else if (game.over) banner('TOPPED OUT', 'Final score ' + game.score.toLocaleString(), bx, by, bw, bh, cell, 0.6);
+    else if (game.finished) banner('TIME!', 'Final score ' + game.score.toLocaleString(), bx, by, bw, bh, cell, 0.75);
+  }
+
+  function drawBoard(bx, oy, cell) {
+    const bw = cell * 10, bh = cell * 20;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx - 3, oy - 3, bw + 6, bh + 6);
+    ctx.strokeStyle = 'rgba(180,76,255,0.6)'; ctx.lineWidth = 2; ctx.strokeRect(bx - 3, oy - 3, bw + 6, bh + 6);
     ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1; ctx.beginPath();
     for (let x = 1; x < 10; x++) { ctx.moveTo(bx + x * cell + .5, oy); ctx.lineTo(bx + x * cell + .5, oy + bh); }
     for (let y = 1; y < 20; y++) { ctx.moveTo(bx, oy + y * cell + .5); ctx.lineTo(bx + bw, oy + y * cell + .5); }
     ctx.stroke();
-
     const dim = game.over ? 0.35 : 1;
     for (let r = 0; r < 20; r++) for (let c = 0; c < 10; c++) {
       const v = game.board[(T.TOP + r) * T.COLS + c];
@@ -845,51 +980,26 @@ kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 5
       if (!game.finished) for (const [x, y] of game.pieceCells(game.piece, gd)) if (y >= T.TOP) T.drawGhostCell(ctx, bx + x * cell, oy + (y - T.TOP) * cell, cell, code);
       for (const [x, y] of game.pieceCells()) if (y >= T.TOP) T.drawCell(ctx, bx + x * cell, oy + (y - T.TOP) * cell, cell, code, game.finished ? 0.5 : 1);
     }
+  }
 
-    // hold
-    label('HOLD', ox, oy - cell * 0.3, cell);
-    box(ox, oy, cell * 5, cell * 3.4);
-    T.drawPreview(ctx, game.hold, ox + cell * 2.5, oy + cell * 1.7, cell * 0.85, game.holdUsed ? 0.35 : 1);
-    // next
-    label('NEXT', nx, oy - cell * 0.3, cell);
-    box(nx, oy, cell * 5, cell * 13.2);
-    game.refill();
-    for (let i = 0; i < 5; i++) T.drawPreview(ctx, game.queue[i], nx + cell * 2.5, oy + cell * (1.6 + i * 2.5), cell * (i === 0 ? 0.9 : 0.72));
-
-    // stats
-    const left = Math.max(0, endAt - now);
-    stat('SCORE', game.score.toLocaleString(), ox, oy + cell * 5, cell, '#fff', 1.25);
-    stat('LEVEL', game.level, ox, oy + cell * 8, cell);
-    stat('LINES', game.lines, ox, oy + cell * 10.6, cell);
-    stat('TIME', fmt(now < startAt ? endAt - startAt : left), nx, oy + cell * 14.6, cell, left < 15000 && now >= startAt ? '#ff6b7a' : '#fff');
-    if (rankInfo) stat('RANK', '#' + rankInfo.rank + ' / ' + rankInfo.total, nx, oy + cell * 17.2, cell, rankInfo.rank === 1 ? '#ffd820' : '#fff');
-
-    ctx.textAlign = 'center'; ctx.fillStyle = '#9aa3c7'; ctx.font = font(cell * 0.6);
-    ctx.fillText(myName, bx + bw / 2, oy - cell * 0.35);
-
-    // floaters
-    for (let i = floaters.length - 1; i >= 0; i--) {
-      const f = floaters[i], age = (now - f.t) / 1400;
-      if (age > 1) { floaters.splice(i, 1); continue; }
-      ctx.globalAlpha = 1 - age * age;
-      ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-      const parts = f.text.split(' · ');
-      parts.forEach((p, k) => { ctx.font = font(cell * (k === 0 ? 0.85 : 0.6)); ctx.fillText(p, bx + bw / 2, oy + bh * 0.38 - age * cell * 2 + k * cell * 0.85); });
-      if (f.pts) { ctx.font = font(cell * 0.6); ctx.fillStyle = '#ffd820'; ctx.fillText('+' + f.pts.toLocaleString(), bx + bw / 2, oy + bh * 0.38 - age * cell * 2 + parts.length * cell * 0.85); }
-      ctx.globalAlpha = 1;
+  // free screen area once the touch pads are taken out
+  function playArea(W, H) {
+    const pad = 8;
+    const L = $('padL').getBoundingClientRect(), R = $('padR').getBoundingClientRect();
+    if (W > H) { // landscape: pads at the sides
+      const x0 = Math.max(L.right, pad) + pad, x1 = Math.min(R.left, W - pad) - pad;
+      return { x: x0, y: pad, w: x1 - x0, h: H - pad * 2 };
     }
-
-    // overlays
-    if (now < startAt) {
-      const s = Math.ceil((startAt - now) / 1000);
-      banner(String(s), 'Get ready!', bx, oy, bw, bh, cell);
-    } else if (now - startAt < 700 && game.active) {
-      banner('GO!', '', bx, oy, bw, bh, cell);
-    } else if (game.over) {
-      banner('TOPPED OUT', 'Final score ' + game.score.toLocaleString(), bx, oy, bw, bh, cell, 0.6);
-    } else if (game.finished) {
-      banner('TIME!', 'Final score ' + game.score.toLocaleString(), bx, oy, bw, bh, cell, 0.75);
-    }
+    const top = Math.min(L.top, R.top);
+    return { x: pad, y: pad, w: W - pad * 2, h: top - pad * 2 };
+  }
+  function smallLabel(t, x, y, cell) { ctx.fillStyle = '#9aa3c7'; ctx.font = font(cell * 0.42); ctx.textAlign = 'left'; ctx.fillText(t, x, y); }
+  function statFit(name, val, x, y, w, cell, color) {
+    smallLabel(name, x, y + cell * 0.45, cell);
+    let sz = cell * 0.72; ctx.font = font(sz);
+    const t = String(val);
+    while (sz > cell * 0.35 && ctx.measureText(t).width > w) { sz *= 0.9; ctx.font = font(sz); }
+    ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.fillText(t, x, y + cell * 1.2);
   }
 
   function label(t, x, y, cell) { ctx.fillStyle = '#9aa3c7'; ctx.font = font(cell * 0.55); ctx.textAlign = 'left'; ctx.fillText(t, x, y); }
