@@ -440,7 +440,7 @@
     bc.onmessage = e => {
       const d = e.data || {};
       if (!d.from || !d.m) return;
-      if (d.m.t === 'bye') { if (known.delete(d.from)) h.onClose(d.from); return; }
+      if (d.m.t === 'bye') { if (known.has(d.from)) { h.onMessage(d.from, d.m); known.delete(d.from); } return; }
       if (!known.has(d.from)) { known.add(d.from); h.onOpen(d.from); }
       h.onMessage(d.from, d.m);
     };
@@ -553,13 +553,13 @@
       if (!m || typeof m !== 'object') return;
       if (m.t === 'hello') { hello(id, m); return; }
       const p = conns.get(id);
-      if (!p) { net.send(id, { t: 'who' }); return; }
+      if (!p) { if (m.t !== 'bye') net.send(id, { t: 'who' }); return; }
       p.lastSeen = now(); p.connected = true;
       if (m.t === 'ready') {
         if (phase === 'lobby') { p.ready = !!m.v; sendLobbyAll(); }
       } else if (m.t === 'snap') {
         if (p.inMatch && (phase === 'playing' || phase === 'countdown')) applySnap(p, m);
-      } else if (m.t === 'bye') gone(p);
+      } else if (m.t === 'bye') gone(p, true);
     },
     onClose(id) { const p = conns.get(id); if (p) gone(p); },
   });
@@ -584,9 +584,12 @@
     else sendTick(p);
   }
 
-  function gone(p) {
+  // closedTab = the player's page said goodbye (tab closed / navigated away) -> remove right away.
+  // Otherwise (connection dropped, PC asleep) a player mid-match gets 10 s to reconnect.
+  function gone(p, closedTab) {
     if (p.conn) { conns.delete(p.conn); net.drop(p.conn); }
     p.conn = null; p.connected = false; p.lostAt = now(); p.ready = false;
+    if (closedTab && p.inMatch) p.alive = false;
     if (phase === 'lobby' || !p.inMatch) { players = players.filter(q => q !== p); if (phase === 'lobby') sendLobbyAll(); }
   }
 
@@ -657,7 +660,7 @@
   function tick() {
     const t = now();
     for (const p of players.slice()) {
-      if (p.connected && t - p.lastSeen > 10000) gone(p);
+      if (p.connected && t - p.lastSeen > 5000) gone(p);
       else if (!p.connected && p.inMatch && p.alive && t - p.lostAt > 10000) p.alive = false;
     }
     if (phase === 'lobby') {
