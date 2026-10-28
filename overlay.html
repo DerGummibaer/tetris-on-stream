@@ -476,7 +476,7 @@
     peer.on('open', () => connect());
     peer.on('error', e => {
       if (e.type === 'peer-unavailable') {
-        h.onStatus('Room "' + room + '" was not found. Is the stream overlay running and the room code right? Retrying…');
+        h.onStatus('The game isn\'t open on stream right now. Waiting for it to start…');
         schedule(4000);
       } else if (e.type === 'browser-incompatible') {
         h.onStatus('Your browser does not support WebRTC. Please use a current Chrome, Firefox, Edge or Safari.');
@@ -527,12 +527,7 @@
   const COUNTDOWN_MS = 3000;
   const EMPTY = '0'.repeat(200);
 
-  let room = Net.cleanRoom(qs.get('room'));
-  if (!room) {
-    try { room = localStorage.getItem('cpt-room') || ''; } catch (e) { }
-    if (!room) room = Array.from({ length: 5 }, () => 'abcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 31)]).join('');
-    try { localStorage.setItem('cpt-room', room); } catch (e) { }
-  }
+  const room = Net.cleanRoom(qs.get('room')) || 'dergummibaer';
   const joinText = qs.get('join') || new URL('./', location.href).href.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
   // ---------------- state ----------------
@@ -760,18 +755,11 @@
     const tw = ctx.measureText('CHAT PLAYS ').width;
     ctx.fillStyle = g; ctx.fillText('TETRIS', x + 22 * U + tw, cy);
     // join info
-    ctx.textAlign = 'right'; ctx.font = font(26 * U);
-    const codeW = ctx.measureText(room.toUpperCase()).width;
-    ctx.fillStyle = GOLD; ctx.fillText(room.toUpperCase(), x + w - 22 * U, cy);
-    ctx.fillStyle = '#9aa3c7'; ctx.font = font(20 * U);
-    const roomLbl = 'ROOM ';
-    ctx.fillText(roomLbl, x + w - 22 * U - codeW, cy);
-    const rx = x + w - 22 * U - codeW - ctx.measureText(roomLbl).width - 26 * U;
-    ctx.fillStyle = '#fff'; ctx.font = font(24 * U);
-    ctx.fillText(joinText, rx, cy);
+    ctx.textAlign = 'right'; ctx.font = font(24 * U); ctx.fillStyle = '#fff';
+    ctx.fillText(joinText, x + w - 22 * U, cy);
     const jw = ctx.measureText(joinText).width;
     ctx.fillStyle = '#9aa3c7'; ctx.font = font(20 * U);
-    ctx.fillText('PLAY AT  ', rx - jw, cy);
+    ctx.fillText('PLAY AT  ', x + w - 22 * U - jw, cy);
     // status (centre)
     ctx.textAlign = 'center'; ctx.font = font(24 * U); ctx.fillStyle = '#fff';
     let s = '';
@@ -792,7 +780,7 @@
     ctx.fillText(s, x + w * 0.42, cy);
     if (netStatus !== 'online') {
       ctx.font = font(15 * U); ctx.fillStyle = '#ff6b7a';
-      const msg = netStatus === 'id-taken' ? 'room code in use by another open overlay – close other copies (retrying)' : 'connecting to network… (' + netStatus + ')';
+      const msg = netStatus === 'id-taken' ? 'the overlay is open twice – close the other copy (retrying)' : 'connecting to network… (' + netStatus + ')';
       ctx.fillText(msg, x + w * 0.42, y + h + 14 * U);
     }
     ctx.textBaseline = 'alphabetic';
@@ -804,8 +792,7 @@
     ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = font(44 * U);
     ctx.fillText('JOIN THE GAME!', x + w / 2, y + 80 * U);
     ctx.font = font(28 * U); ctx.fillStyle = '#c9cff0';
-    ctx.fillText(joinText, x + w / 2, y + 135 * U);
-    ctx.fillStyle = GOLD; ctx.fillText('ROOM: ' + room.toUpperCase(), x + w / 2, y + 180 * U);
+    ctx.fillText(joinText, x + w / 2, y + 150 * U);
   }
 
   function drawField(p, x, y, cell, rank, t) {

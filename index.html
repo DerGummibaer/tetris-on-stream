@@ -67,7 +67,6 @@ kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 5
   <section id="s-join" class="card">
     <h1>CHAT PLAYS <span>TETRIS</span></h1>
     <form id="joinForm" autocomplete="off">
-      <label>Room code <input id="room" maxlength="32" required spellcheck="false"></label>
       <label>Your name <input id="name" maxlength="16" required spellcheck="false" placeholder="your chat name"></label>
       <button type="submit" class="big">Join the match</button>
     </form>
@@ -80,7 +79,7 @@ kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 5
   </section>
 
   <section id="s-lobby" class="card hidden">
-    <div class="who">Room <b id="lbRoom"></b> · playing as <b id="lbName"></b></div>
+    <div class="who">Playing as <b id="lbName"></b></div>
     <button id="readyBtn" class="big ready">I'M READY</button>
     <p class="hint small">or press <kbd>R</kbd></p>
     <div id="lbInfo" class="info"></div>
@@ -574,7 +573,7 @@ kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 5
     peer.on('open', () => connect());
     peer.on('error', e => {
       if (e.type === 'peer-unavailable') {
-        h.onStatus('Room "' + room + '" was not found. Is the stream overlay running and the room code right? Retrying…');
+        h.onStatus('The game isn\'t open on stream right now. Waiting for it to start…');
         schedule(4000);
       } else if (e.type === 'browser-incompatible') {
         h.onStatus('Your browser does not support WebRTC. Please use a current Chrome, Firefox, Edge or Safari.');
@@ -630,19 +629,18 @@ kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 5
   const floaters = [];
 
   // ---------- join ----------
-  $('room').value = Net.cleanRoom(qs.get('room') || '');
+  const ROOM = Net.cleanRoom(qs.get('room')) || 'dergummibaer';
   try { $('name').value = localStorage.getItem('cpt-name') || ''; } catch (e) { }
-  ($('room').value ? $('name') : $('room')).focus();
+  $('name').focus();
 
   const cleanName = s => String(s || '').replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16);
 
   $('joinForm').addEventListener('submit', e => {
     e.preventDefault();
-    const r = Net.cleanRoom($('room').value), n = cleanName($('name').value);
-    if (!r || !n) return;
+    const r = ROOM, n = cleanName($('name').value);
+    if (!n) return;
     room = r; myName = n;
     try { localStorage.setItem('cpt-name', n); } catch (e) { }
-    const u = new URL(location.href); u.searchParams.set('room', r); history.replaceState(null, '', u);
     document.activeElement && document.activeElement.blur();
     connect();
   });
@@ -653,7 +651,7 @@ kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 5
   }
 
   function connect() {
-    setStatus('Connecting to room "' + room + '"…');
+    setStatus('Connecting to the stream…');
     try {
       net = Net.createClient(room, LOCAL, {
         onOpen() { sayHello(); },
@@ -679,7 +677,7 @@ kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 5
     switch (m.t) {
       case 'welcome':
         welcomed = true; netWarn(false);
-        myName = m.name; $('lbName').textContent = m.name; $('lbRoom').textContent = room;
+        myName = m.name; $('lbName').textContent = m.name;
         if (mode === 'status') { mode = 'wait'; show('wait'); $('waitText').textContent = 'Connected! Waiting for the overlay…'; }
         break;
       case 'who': welcomed = false; sayHello(); break;
