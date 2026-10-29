@@ -528,8 +528,27 @@
   const EMPTY = '0'.repeat(200);
 
   // ?room=YourName  (shown on screen as typed; matching ignores upper/lower case)
-  const roomLabel = (qs.get('room') || 'dergummibaer').trim().slice(0, 32);
-  const room = Net.cleanRoom(roomLabel) || 'dergummibaer';
+  const roomLabel = (qs.get('room') || '').trim().slice(0, 32);
+  const room = Net.cleanRoom(roomLabel);
+  const setupUrl = new URL('setup', location.href).href.replace(/^https?:\/\//, '');
+  if (!room) { // no streamer name in the URL: show how to set it up instead of hosting a game
+    const c = document.getElementById('cv'), x = c.getContext('2d');
+    const draw = () => {
+      const d = devicePixelRatio || 1, W = innerWidth, H = innerHeight, U = Math.min(W / 1920, H / 1080);
+      c.width = W * d; c.height = H * d; x.setTransform(d, 0, 0, d, 0, 0);
+      const w = 1100 * U, h = 260 * U, X = (W - w) / 2, Y = (H - h) / 2;
+      x.fillStyle = 'rgba(10,12,26,0.9)'; x.fillRect(X, Y, w, h);
+      x.strokeStyle = '#ff6b7a'; x.lineWidth = 3 * U; x.strokeRect(X, Y, w, h);
+      x.textAlign = 'center'; x.fillStyle = '#fff'; x.font = `${46 * U}px 'Russo One', sans-serif`;
+      x.fillText('STREAMER NAME MISSING', W / 2, Y + 80 * U);
+      x.font = `${28 * U}px 'Russo One', sans-serif`; x.fillStyle = '#c9cff0';
+      x.fillText('Get your overlay link at', W / 2, Y + 145 * U);
+      x.fillStyle = '#ffd820'; x.font = `${34 * U}px 'Russo One', sans-serif`;
+      x.fillText(setupUrl, W / 2, Y + 200 * U);
+    };
+    addEventListener('resize', draw); draw(); setTimeout(draw, 800);
+    return;
+  }
   const joinText = qs.get('join') || new URL('./', location.href).href.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
   // ---------------- state ----------------

@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#070912">
+<title>Chat Plays Tetris – Streamer setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #070912;
+  --panel: rgba(16, 19, 36, 0.92);
+  --line: rgba(255, 255, 255, 0.12);
+  --text: #eef1ff;
+  --muted: #9aa3c7;
+  --accent: #b44cff;
+  --accent2: #1fd6f5;
+  --ok: #44e05c;
+  --warn: #ff3d50;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, sans-serif; overflow: hidden; }
+canvas#cv { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+#ui { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; padding: 16px; overflow-y: auto; }
+.card { pointer-events: auto; width: min(560px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 28px; box-shadow: 0 30px 80px rgba(0,0,0,.5); text-align: center; }
+.hidden { display: none !important; }
+h1 { font-family: 'Russo One', sans-serif; font-weight: 400; font-size: clamp(28px, 6vw, 44px); margin: 0 0 22px; letter-spacing: 1px; }
+h1 span { background: linear-gradient(90deg, var(--accent2), var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+h2 { font-family: 'Russo One', sans-serif; font-weight: 400; margin: 0 0 12px; font-size: 30px; }
+form { display: grid; gap: 14px; text-align: left; }
+label { display: grid; gap: 6px; font-weight: 600; color: var(--muted); font-size: 14px; }
+input { font: inherit; font-size: 20px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.35); color: var(--text); outline: none; }
+input:focus { border-color: var(--accent); }
+button.big { font-family: 'Russo One', sans-serif; font-size: 22px; padding: 16px; border: 0; border-radius: 12px; cursor: pointer; color: #fff; background: linear-gradient(90deg, #6a36ff, var(--accent)); transition: transform .08s; width: 100%; }
+button.big:active { transform: scale(.98); }
+button.ready { margin-top: 10px; font-size: 28px; padding: 22px; background: linear-gradient(90deg, #2a2f4a, #3a3f60); }
+button.ready.on { background: linear-gradient(90deg, #1b9b3a, var(--ok)); }
+.hint { color: var(--muted); font-size: 14px; margin: 14px 0 0; }
+.hint.small { margin-top: 6px; font-size: 12px; }
+.who { color: var(--muted); }
+.who b { color: var(--text); }
+.info { margin: 18px 0 8px; font-size: 17px; line-height: 1.4; }
+.meter { position: relative; height: 12px; border-radius: 6px; background: rgba(255,255,255,.08); overflow: visible; }
+.meter > div { height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--accent2), var(--ok)); width: 0; transition: width .3s; }
+.meter > i { position: absolute; top: -4px; bottom: -4px; width: 3px; background: #fff; border-radius: 2px; }
+.players { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-height: 140px; overflow-y: auto; }
+.players li { padding: 4px 10px; border-radius: 99px; font-size: 13px; background: rgba(255,255,255,.07); color: var(--muted); }
+.players li.r { background: rgba(68,224,92,.18); color: #b9ffc6; }
+.players li.me { outline: 1px solid var(--accent); }
+.controls { margin: 20px auto 0; border-collapse: collapse; font-size: 14px; color: var(--muted); text-align: left; }
+.controls td { padding: 4px 10px; }
+kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 5px; background: rgba(255,255,255,.1); border: 1px solid var(--line); border-bottom-width: 2px; font-family: inherit; font-size: 12px; color: var(--text); text-align: center; }
+.results { text-align: left; margin: 14px auto 0; padding-left: 30px; max-width: 360px; font-size: 18px; line-height: 1.7; }
+.results li span { float: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.results li.me { color: var(--accent2); font-weight: 800; }
+.you { font-size: 20px; font-weight: 800; }
+.spinner { width: 46px; height: 46px; margin: 0 auto 16px; border-radius: 50%; border: 4px solid rgba(255,255,255,.12); border-top-color: var(--accent); animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.netwarn { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: var(--warn); color: #fff; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 14px; }
+
+/* ---------- touch / phone ---------- */
+.touch-only { display: none; }
+html.touch .touch-only { display: block; }
+html.touch .keys-only { display: none !important; }
+html.touch, html.touch body { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+html.touch input { -webkit-user-select: text; user-select: text; font-size: 18px; }
+#touchPads { display: none; }
+html.touch body.playing #touchPads { display: block; }
+html.touch body.playing { touch-action: none; }
+.pad { position: fixed; bottom: calc(10px + env(safe-area-inset-bottom)); display: grid; gap: 8px; z-index: 5; }
+.pad button {
+  font-family: 'Russo One', sans-serif; font-size: 26px; color: #fff; border: 1px solid rgba(255,255,255,.14);
+  border-radius: 16px; background: rgba(40,46,80,.72); touch-action: none; -webkit-user-select: none; user-select: none;
+  display: grid; place-items: center; padding: 0; min-height: 0;
+}
+.pad button.wide { grid-column: 1 / -1; font-size: 17px; letter-spacing: 1px; }
+.pad button.drop { background: rgba(120,60,220,.75); }
+.pad button.on { background: rgba(180,76,255,.85); transform: scale(.96); }
+/* portrait: both pads along the bottom */
+#padL { left: 10px; width: calc(58% - 15px); grid-template-columns: repeat(3, 1fr); grid-template-rows: 48px 72px; }
+#padR { right: 10px; width: calc(42% - 15px); grid-template-columns: repeat(2, 1fr); grid-template-rows: 72px 48px; }
+/* landscape: pads at the sides of the board */
+@media (orientation: landscape) {
+  #padL { left: calc(10px + env(safe-area-inset-left)); width: min(30vw, 250px); grid-template-rows: 44px 76px; }
+  #padR { right: calc(10px + env(safe-area-inset-right)); width: min(24vw, 190px); grid-template-rows: 76px 44px; }
+}
+@media (max-width: 420px) { .card { padding: 20px 16px; } h1 { margin-bottom: 16px; } .controls { font-size: 13px; } }
+</style>
+<style>
+  body { overflow-y: auto; }
+  #ui { position: static; min-height: 100%; padding: 32px 16px; }
+  .card { width: min(720px, 100%); text-align: left; }
+  h1 { text-align: center; }
+  .sub { text-align: center; color: var(--muted); margin: -10px 0 24px; }
+  .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+  input[type=number] { width: 100%; }
+  .out { margin-top: 22px; }
+  .out h3 { font-family: 'Russo One', sans-serif; font-weight: 400; margin: 0 0 6px; font-size: 18px; }
+  .out p { color: var(--muted); margin: 0 0 8px; font-size: 14px; line-height: 1.5; }
+  .copy { display: flex; gap: 8px; }
+  .copy code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; padding: 12px 14px; border-radius: 10px; background: rgba(0,0,0,.4); border: 1px solid var(--line); font-size: 15px; color: #fff; }
+  .copy button { font: 600 14px Inter, sans-serif; padding: 0 16px; border-radius: 10px; border: 0; background: #6a36ff; color: #fff; cursor: pointer; white-space: nowrap; }
+  .copy button.done { background: #1b9b3a; }
+  ol.steps { color: var(--muted); font-size: 14px; line-height: 1.7; padding-left: 20px; margin: 6px 0 0; }
+  ol.steps b { color: var(--text); }
+  .disabled { opacity: .35; pointer-events: none; }
+  .back { display: block; text-align: center; margin-top: 18px; color: var(--muted); font-size: 14px; }
+  a { color: var(--accent2); }
+</style>
+</head>
+<body>
+<main id="ui">
+  <section class="card">
+    <h1>CHAT PLAYS <span>TETRIS</span></h1>
+    <p class="sub">Streamer setup — get your overlay link in 10 seconds.</p>
+    <form id="f" autocomplete="off" onsubmit="return false">
+      <label>Your streamer name <input id="room" maxlength="32" spellcheck="false" placeholder="e.g. your Twitch name"></label>
+      <div class="row" style="margin-top:14px">
+        <label>Match length (sec) <input id="time" type="number" min="30" max="1800" value="180"></label>
+        <label>Lobby time (sec) <input id="lobby" type="number" min="5" max="600" value="60"></label>
+        <label>Start when more than (%) ready <input id="ready" type="number" min="1" max="99" value="55"></label>
+      </div>
+    </form>
+
+    <div id="outs" class="disabled">
+      <div class="out">
+        <h3>1 · OBS overlay</h3>
+        <p>Add a <b>Browser</b> source with this URL.</p>
+        <div class="copy"><code id="obs"></code><button data-c="obs">Copy</button></div>
+        <ol class="steps">
+          <li>Width <b>1920</b>, height <b>1080</b> (or your canvas size). The background is transparent.</li>
+          <li>Turn <b>off</b> “Shutdown source when not visible”. The overlay runs the match.</li>
+          <li>Only have it open once. Close any copy in a normal browser tab.</li>
+          <li>Hotkeys (right-click the source → Interact): <b>F</b> force start · <b>E</b> end match · <b>R</b> back to lobby.</li>
+        </ol>
+      </div>
+      <div class="out">
+        <h3>2 · Link for your chat</h3>
+        <p>Viewers who open this link have your name filled in already. They can also go to the main site and type your name.</p>
+        <div class="copy"><code id="chat"></code><button data-c="chat">Copy</button></div>
+      </div>
+    </div>
+    <a class="back" href="./">← back to the game</a>
+  </section>
+</main>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const base = new URL('./', location.href).href;
+  const clean = r => String(r || '').trim().slice(0, 32);
+  try { $('room').value = localStorage.getItem('cpt-streamer') || ''; } catch (e) { }
+  function update() {
+    const name = clean($('room').value), ok = /[a-z0-9]/i.test(name);
+    $('outs').classList.toggle('disabled', !ok);
+    const q = new URLSearchParams({ room: name || 'YourName' });
+    const num = (id, d) => { const v = Math.round(+$(id).value); return v > 0 ? v : d; };
+    if (num('time', 180) !== 180) q.set('time', num('time', 180));
+    if (num('lobby', 60) !== 60) q.set('lobby', num('lobby', 60));
+    if (num('ready', 55) !== 55) q.set('ready', Math.min(99, num('ready', 55)));
+    $('obs').textContent = base + 'overlay.html?' + q.toString();
+    $('chat').textContent = base.replace(/^https?:\/\//, '').replace(/\/$/, '') + '/?room=' + encodeURIComponent(name || 'YourName');
+    try { if (ok) localStorage.setItem('cpt-streamer', name); } catch (e) { }
+  }
+  document.querySelectorAll('input').forEach(i => i.addEventListener('input', update));
+  document.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', async () => {
+    const t = $(b.dataset.c).textContent;
+    try { await navigator.clipboard.writeText(t); }
+    catch (e) { const r = document.createRange(); r.selectNodeContents($(b.dataset.c)); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); }
+    b.textContent = 'Copied!'; b.classList.add('done');
+    setTimeout(() => { b.textContent = 'Copy'; b.classList.remove('done'); }, 1500);
+  }));
+  update(); $('room').focus();
+})();
+</script>
+</body>
+</html>
