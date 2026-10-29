@@ -262,8 +262,7 @@ html:not(.touch) .pad.kbd button { cursor: pointer; }
     <form id="f" autocomplete="off" onsubmit="return false">
       <label>Your streamer name <input id="room" maxlength="32" spellcheck="false" placeholder="e.g. your Twitch name"></label>
       <div class="row" style="margin-top:14px">
-        <label>First game <select id="game"></select></label>
-        <label>Match length (sec) <input id="time" type="number" min="0" max="1800" placeholder="game default"></label>
+        <label>Match length (sec) <input id="time" type="number" min="0" max="1800" placeholder="each game's own"></label>
         <label>Lobby time (sec) <input id="lobby" type="number" min="5" max="600" value="60"></label>
       </div>
       <div class="row" style="margin-top:14px">
@@ -280,7 +279,8 @@ html:not(.touch) .pad.kbd button { cursor: pointer; }
           <li>Width <b>1920</b>, height <b>1080</b> (or your canvas size). The background is transparent.</li>
           <li>Turn <b>off</b> “Shutdown source when not visible”. The overlay runs the match.</li>
           <li>Only have it open once. Close any copy in a normal browser tab.</li>
-          <li>Hotkeys (right-click the source → Interact): <b id="gamekeys"></b> or <b>G</b> pick the next game (in the lobby) · <b>F</b> force start · <b>E</b> end match · <b>R</b> back to lobby.</li>
+          <li><b>Picking the game:</b> right-click the source → <b>Interact</b> and click a game at the top of the overlay. It remembers your pick.</li>
+          <li>Hotkeys in the same window: <b>F</b> force start · <b>E</b> end match · <b>R</b> back to lobby.</li>
         </ol>
       </div>
       <div class="out">
@@ -301,8 +301,7 @@ html:not(.touch) .pad.kbd button { cursor: pointer; }
   document.querySelector('.brand').innerHTML = ''; document.querySelector('.brand').append(brand[0] + ' ');
   { const sp = document.createElement('span'); sp.textContent = brand.slice(1).join(' '); document.querySelector('.brand').append(sp); }
   document.title = brand.map(w => w[0] + w.slice(1).toLowerCase()).join(' ') + ' – Streamer setup';
-  for (const [id, name, t] of GAMES) { const o = document.createElement('option'); o.value = id; o.textContent = name + ' (' + t + ' s)'; $('game').appendChild(o); }
-  $('gamekeys').textContent = GAMES.map(([, n], i) => (i + 1) + ' ' + n).join(' · ');
+
   const clean = r => String(r || '').trim().slice(0, 32);
   try { $('room').value = localStorage.getItem('cpt-streamer') || ''; } catch (e) { }
   function update() {
@@ -310,7 +309,6 @@ html:not(.touch) .pad.kbd button { cursor: pointer; }
     $('outs').classList.toggle('disabled', !ok);
     const q = new URLSearchParams({ room: name || 'YourName' });
     const num = (id, d) => { const v = Math.round(+$(id).value); return v > 0 ? v : d; };
-    if ($('game').value !== 'blocks') q.set('game', $('game').value);
     if (num('time', 0) > 0) q.set('time', num('time', 0));
     if (num('lobby', 60) !== 60) q.set('lobby', num('lobby', 60));
     if (num('ready', 55) !== 55) q.set('ready', Math.min(99, num('ready', 55)));

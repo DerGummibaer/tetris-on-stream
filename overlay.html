@@ -1287,7 +1287,9 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
   const RESULTS_MS = num('results', 15) * 1000;
   const MAX_PLAYERS = num('max', 100);
   const COUNTDOWN_MS = 3000;
-  let gameDef = G.get(qs.get('game') || 'blocks');   // game for the next round
+  // game for the next round: ?game= in the link wins, otherwise the last game picked on this overlay
+  let savedGame = ''; try { savedGame = localStorage.getItem('arcade-game') || ''; } catch (e) { }
+  let gameDef = G.get(qs.get('game') || savedGame || 'blocks');
   let matchDef = gameDef;                             // game of the current / last round
   let matchSeed = 0;
   const matchMs = d => TIME_OVERRIDE || d.defaultTime * 1000;
@@ -1489,7 +1491,11 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
   }
   setInterval(tick, 200);
 
-  function pickGame(d) { if (phase !== 'lobby' || !d || d === gameDef) return; gameDef = d; sendLobbyAll(); }
+  function pickGame(d) {
+    if (phase !== 'lobby' || !d || d === gameDef) return;
+    gameDef = d; sendLobbyAll();
+    try { localStorage.setItem('arcade-game', d.id); } catch (e) { }
+  }
   addEventListener('keydown', e => {
     const n = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
     if (n) pickGame(G.list[+n[1] - 1]);
@@ -1526,6 +1532,12 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
 
     const fields = phase === 'lobby' ? lobbyPlayers() : matchPlayers();
     const area = { x: m, y: m * 2 + barH, w: W - 2 * m, h: H - barH - m * 3 };
+    pickRects = [];
+    if (phase === 'lobby') { // game picker under the top bar
+      const ph = Math.round(58 * U);
+      drawPicker(area.x, area.y, area.w, ph, U, t);
+      area.y += ph + m; area.h -= ph + m;
+    }
     if (!fields.length) { drawEmpty(area, U); return; }
 
     const rankOf = new Map();
@@ -1603,6 +1615,44 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
     }
     ctx.textBaseline = 'alphabetic';
   }
+
+  // ---- clickable game picker (OBS: right-click the source → Interact, then click) ----
+  let pickRects = [], mouseAt = -1e9, mouseX = -1, mouseY = -1;
+  function drawPicker(x, y, w, h, U, t) {
+    const pw = 190 * U, gap = 12 * U, label = 'NEXT GAME';
+    ctx.font = font(20 * U);
+    const lw = ctx.measureText(label).width + 24 * U;
+    const total = lw + G.list.length * pw + (G.list.length - 1) * gap;
+    let px = x + (w - total) / 2;
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillStyle = '#9aa3c7';
+    ctx.fillText(label, px, y + h / 2); px += lw;
+    G.list.forEach((d, i) => {
+      const sel = d === gameDef, hover = mouseX >= px && mouseX <= px + pw && mouseY >= y && mouseY <= y + h && t - mouseAt < 3000;
+      ctx.fillStyle = sel ? 'rgba(255,216,32,0.95)' : hover ? 'rgba(60,66,110,0.95)' : 'rgba(10,12,26,0.82)';
+      rr(px, y, pw, h, h / 2); ctx.fill();
+      ctx.lineWidth = 2 * U; ctx.strokeStyle = sel ? GOLD : 'rgba(180,76,255,0.5)'; ctx.stroke();
+      ctx.textAlign = 'center'; ctx.font = font(24 * U); ctx.fillStyle = sel ? '#14121f' : '#fff';
+      ctx.fillText(d.name.toUpperCase(), px + pw / 2, y + h / 2 + 1);
+      pickRects.push({ x: px, y, w: pw, h, d });
+      px += pw + gap;
+    });
+    if (t - mouseAt < 3000) { // hint only while the streamer's mouse is over the overlay
+      ctx.font = font(15 * U); ctx.fillStyle = '#c9cff0'; ctx.textAlign = 'center';
+      ctx.fillText('click a game to pick it · F start now', x + w / 2, y + h + 12 * U);
+    }
+    ctx.textBaseline = 'alphabetic';
+  }
+  const cvEl = document.getElementById('cv');
+  addEventListener('pointermove', e => { mouseX = e.clientX; mouseY = e.clientY; mouseAt = now(); });
+  addEventListener('pointerdown', e => {
+    mouseX = e.clientX; mouseY = e.clientY; mouseAt = now();
+    const r = pickRects.find(r => e.clientX >= r.x && e.clientX <= r.x + r.w && e.clientY >= r.y && e.clientY <= r.y + r.h);
+    if (r) pickGame(r.d);
+  });
+  addEventListener('pointermove', () => {
+    const r = pickRects.find(r => mouseX >= r.x && mouseX <= r.x + r.w && mouseY >= r.y && mouseY <= r.y + r.h);
+    cvEl.style.cursor = r ? 'pointer' : '';
+  });
 
   function drawEmpty(a, U) {
     const w = 900 * U, h = 290 * U, x = a.x + (a.w - w) / 2, y = a.y + (a.h - h) / 2;
