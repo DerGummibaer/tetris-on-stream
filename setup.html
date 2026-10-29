@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#070912">
-<title>Chat Plays Tetris – Streamer setup</title>
+<title>Chat Arcade – Streamer setup</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
@@ -66,8 +66,11 @@ html.touch .touch-only { display: block; }
 html.touch .keys-only { display: none !important; }
 html.touch, html.touch body { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
 html.touch input { -webkit-user-select: text; user-select: text; font-size: 18px; }
-#touchPads { display: none; }
-html.touch body.playing #touchPads { display: block; }
+#touchPads .pg { display: none; }
+html.touch body.playing[data-game=blocks] #pg-blocks,
+html.touch body.playing[data-game=snake] #pg-snake,
+html.touch body.playing[data-game=mines] #pg-mines,
+body.playing[data-game=words] #pg-words { display: block; }
 html.touch body.playing { touch-action: none; }
 .pad { position: fixed; bottom: calc(10px + env(safe-area-inset-bottom)); display: grid; gap: 8px; z-index: 5; }
 .pad button {
@@ -87,7 +90,145 @@ html.touch body.playing { touch-action: none; }
   #padR { right: calc(10px + env(safe-area-inset-right)); width: min(24vw, 190px); grid-template-rows: 76px 44px; }
 }
 @media (max-width: 420px) { .card { padding: 20px 16px; } h1 { margin-bottom: 16px; } .controls { font-size: 13px; } }
+
+/* ---------- solo ---------- */
+button.big.alt { background: linear-gradient(90deg, #2a2f4a, #3a3f60); }
+.or { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; margin: 14px 0; }
+.or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.solo-btns { display: grid; gap: 10px; margin-top: 16px; }
+.linkbtn { background: none; border: 0; color: var(--muted); font: 600 15px Inter, sans-serif; cursor: pointer; padding: 8px; text-decoration: underline; }
+#s-solo { background: rgba(16,19,36,.94); }
+.pausebtn { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: 10px; z-index: 6; width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: rgba(40,46,80,.72); color: #fff; font-size: 16px; cursor: pointer; }
+html.touch .pausebtn { top: calc(8px + env(safe-area-inset-top)); right: 8px; }
+
+/* ---------- multi-game ---------- */
+.solo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.solo-grid .big { font-size: 19px; padding: 13px; }
+.nextgame { margin-top: 10px; font-size: 20px; color: var(--muted); }
+.nextgame b { font-family: 'Russo One', sans-serif; font-weight: 400; color: #ffd820; font-size: 26px; margin-left: 4px; }
+.tagline { color: var(--muted); font-size: 14px; margin: 4px 0 0; }
+#howto .controls { margin-top: 16px; }
+#howto .hint { margin-top: 16px; }
+.reveal { font-family: 'Russo One', sans-serif; color: #ffd820; font-size: 20px; margin: 4px 0 0; }
+.reveal:empty { display: none; }
+/* snake d-pad */
+.pad.dpad { left: 50%; transform: translateX(-50%); width: min(260px, 70vw); grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 62px); gap: 6px; }
+.dpad .u { grid-column: 2; grid-row: 1; } .dpad .l { grid-column: 1; grid-row: 2; } .dpad .r { grid-column: 3; grid-row: 2; } .dpad .d { grid-column: 2; grid-row: 3; }
+@media (orientation: landscape) { .pad.dpad { left: calc(12px + env(safe-area-inset-left)); transform: none; width: min(220px, 30vw); grid-template-rows: repeat(3, 58px); } }
+/* mines tool switch */
+.pad.minespad { left: 10px; right: 10px; grid-template-columns: 1fr; grid-template-rows: 56px; }
+.pad.minespad button.flag { background: rgba(200,40,60,.8); }
+@media (orientation: landscape) { .pad.minespad { left: auto; right: calc(12px + env(safe-area-inset-right)); width: min(190px, 26vw); grid-template-rows: 110px; } }
+/* words keyboard (all devices) */
+.pad.kbd { left: 50%; transform: translateX(-50%); width: min(560px, calc(100vw - 12px)); display: flex; flex-direction: column; gap: 7px; }
+.krow { display: flex; gap: 5px; }
+.krow .half { flex: 0.5; }
+.pad.kbd button { flex: 1; height: 54px; font-size: 18px; border-radius: 8px; padding: 0; min-width: 0; }
+.pad.kbd button.kwide { flex: 1.6; font-size: 13px; }
+.pad.kbd button[data-st=g] { background: #3fbf55; border-color: #3fbf55; }
+.pad.kbd button[data-st=y] { background: #c9a722; border-color: #c9a722; }
+.pad.kbd button[data-st=x] { background: #23263a; color: #6d7394; }
+@media (orientation: landscape) and (max-height: 500px) { .pad.kbd button { height: 40px; font-size: 15px; } .pad.kbd { gap: 5px; } }
+html:not(.touch) .pad.kbd button { cursor: pointer; }
 </style>
+<script>
+/* Shared bits for all games: registry, branding, drawing helpers, layout. */
+(function (root) {
+  'use strict';
+  const Games = { list: [], byId: {} };
+
+  // ---- branding: change the site name here (first part white, second part gradient) ----
+  Games.BRAND = ['CHAT', 'ARCADE'];
+  Games.brandText = () => Games.BRAND.join(' ');
+
+  Games.register = def => { Games.list.push(def); Games.byId[def.id] = def; };
+  Games.get = id => Games.byId[id] || Games.list[0];
+
+  Games.rng = function (a) {
+    a >>>= 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+
+  Games.fmt = ms => { if (!isFinite(ms)) return '∞'; const s = Math.max(0, Math.floor(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  Games.fmtDown = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  Games.font = (px, w = 400) => `${w} ${Math.max(1, Math.round(px))}px 'Russo One', Inter, system-ui, sans-serif`;
+  Games.rr = function (ctx, x, y, w, h, r) { ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); };
+  Games.box = function (ctx, x, y, w, h) {
+    ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+  };
+  Games.frame = function (ctx, x, y, w, h) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
+    ctx.strokeStyle = 'rgba(180,76,255,0.6)'; ctx.lineWidth = 2; ctx.strokeRect(x - 3, y - 3, w + 6, h + 6);
+  };
+  Games.fit = function (ctx, text, maxW) {
+    text = String(text);
+    if (ctx.measureText(text).width <= maxW) return text;
+    let t = text;
+    while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    return t + '…';
+  };
+
+  // Standard stats from the shell + game: [[label, value, color], ...]
+  Games.baseStats = function (inst, view, extra) {
+    const s = [['SCORE', inst.score.toLocaleString(), '#fff']].concat(extra || []);
+    s.push(['TIME', view.timeTxt, view.timeCol]);
+    if (view.rank) s.push(['RANK', '#' + view.rank.rank + '/' + view.rank.total, view.rank.rank === 1 ? '#ffd820' : '#fff']);
+    else if (view.best != null) s.push(['BEST', Math.max(view.best, inst.score).toLocaleString(), inst.score > view.best && view.best > 0 ? '#ffd820' : '#fff']);
+    return s;
+  };
+
+  // Draw stats as a column (x,y,w) or as a row (x,y,w) — returns height used
+  Games.drawStats = function (ctx, items, x, y, w, unit, asRow) {
+    if (asRow) {
+      const cw = w / items.length;
+      items.forEach(([n, v, c], i) => {
+        const cx = x + cw * i + cw / 2;
+        ctx.textAlign = 'center'; ctx.fillStyle = '#9aa3c7'; ctx.font = Games.font(unit * 0.42); ctx.fillText(n, cx, y + unit * 0.45);
+        let sz = unit * 0.72; ctx.font = Games.font(sz);
+        while (sz > unit * 0.3 && ctx.measureText(String(v)).width > cw - 4) { sz *= 0.9; ctx.font = Games.font(sz); }
+        ctx.fillStyle = c || '#fff'; ctx.fillText(String(v), cx, y + unit * 1.2);
+      });
+      return unit * 1.5;
+    }
+    let yy = y;
+    for (const [n, v, c] of items) {
+      ctx.textAlign = 'left'; ctx.fillStyle = '#9aa3c7'; ctx.font = Games.font(unit * 0.45); ctx.fillText(n, x, yy + unit * 0.45);
+      let sz = unit * 0.8; ctx.font = Games.font(sz);
+      while (sz > unit * 0.3 && ctx.measureText(String(v)).width > w) { sz *= 0.9; ctx.font = Games.font(sz); }
+      ctx.fillStyle = c || '#fff'; ctx.fillText(String(v), x, yy + unit * 1.3);
+      yy += unit * 1.75;
+    }
+    return yy - y;
+  };
+
+  /* Fit a cols×rows board plus a stats area into `area`.
+   * Wide areas: stats column on the right (sideCells wide). Narrow areas: a stats row on top. */
+  Games.layout = function (area, cols, rows, sideCells, maxCell) {
+    const right = Math.min(area.w / (cols + sideCells + 0.6), area.h / (rows + 0.4));
+    const top = Math.min(area.w / (cols + 0.4), area.h / (rows + 2.0));
+    const useTop = top > right * 1.08;
+    let cell = Math.floor(Math.max(6, useTop ? top : right));
+    if (maxCell) cell = Math.min(cell, maxCell);
+    const bw = cell * cols, bh = cell * rows;
+    if (useTop) {
+      const tot = bh + cell * 1.7;
+      const bx = Math.round(area.x + (area.w - bw) / 2), y0 = Math.round(area.y + (area.h - tot) / 2);
+      return { cell, bx, by: y0 + Math.round(cell * 1.7), bw, bh, statsRow: { x: bx, y: y0, w: bw } };
+    }
+    const tot = bw + cell * (sideCells + 0.6);
+    const bx = Math.round(area.x + (area.w - tot) / 2), by = Math.round(area.y + (area.h - bh) / 2);
+    return { cell, bx, by, bw, bh, statsCol: { x: bx + bw + cell * 0.6, y: by, w: cell * sideCells } };
+  };
+
+  root.Games = Games;
+})(window);
+</script>
 <style>
   body { overflow-y: auto; }
   #ui { position: static; min-height: 100%; padding: 32px 16px; }
@@ -107,6 +248,8 @@ html.touch body.playing { touch-action: none; }
   ol.steps { color: var(--muted); font-size: 14px; line-height: 1.7; padding-left: 20px; margin: 6px 0 0; }
   ol.steps b { color: var(--text); }
   .disabled { opacity: .35; pointer-events: none; }
+  select { font: inherit; font-size: 18px; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.35); color: var(--text); }
+  select option { background: #10132a; }
   .back { display: block; text-align: center; margin-top: 18px; color: var(--muted); font-size: 14px; }
   a { color: var(--accent2); }
 </style>
@@ -114,13 +257,16 @@ html.touch body.playing { touch-action: none; }
 <body>
 <main id="ui">
   <section class="card">
-    <h1>CHAT PLAYS <span>TETRIS</span></h1>
+    <h1 class="brand">CHAT <span>ARCADE</span></h1>
     <p class="sub">Streamer setup — get your overlay link in 10 seconds.</p>
     <form id="f" autocomplete="off" onsubmit="return false">
       <label>Your streamer name <input id="room" maxlength="32" spellcheck="false" placeholder="e.g. your Twitch name"></label>
       <div class="row" style="margin-top:14px">
-        <label>Match length (sec) <input id="time" type="number" min="30" max="1800" value="180"></label>
+        <label>First game <select id="game"></select></label>
+        <label>Match length (sec) <input id="time" type="number" min="0" max="1800" placeholder="game default"></label>
         <label>Lobby time (sec) <input id="lobby" type="number" min="5" max="600" value="60"></label>
+      </div>
+      <div class="row" style="margin-top:14px">
         <label>Start when more than (%) ready <input id="ready" type="number" min="1" max="99" value="55"></label>
       </div>
     </form>
@@ -134,7 +280,7 @@ html.touch body.playing { touch-action: none; }
           <li>Width <b>1920</b>, height <b>1080</b> (or your canvas size). The background is transparent.</li>
           <li>Turn <b>off</b> “Shutdown source when not visible”. The overlay runs the match.</li>
           <li>Only have it open once. Close any copy in a normal browser tab.</li>
-          <li>Hotkeys (right-click the source → Interact): <b>F</b> force start · <b>E</b> end match · <b>R</b> back to lobby.</li>
+          <li>Hotkeys (right-click the source → Interact): <b id="gamekeys"></b> or <b>G</b> pick the next game (in the lobby) · <b>F</b> force start · <b>E</b> end match · <b>R</b> back to lobby.</li>
         </ol>
       </div>
       <div class="out">
@@ -150,6 +296,13 @@ html.touch body.playing { touch-action: none; }
 (function () {
   const $ = id => document.getElementById(id);
   const base = new URL('./', location.href).href;
+  const GAMES = [['blocks', 'Blocks', 180], ['snake', 'Snake', 120], ['mines', 'Mines', 180], ['words', 'Words', 180]];
+  const brand = (window.Games && Games.BRAND) || ['CHAT', 'ARCADE'];
+  document.querySelector('.brand').innerHTML = ''; document.querySelector('.brand').append(brand[0] + ' ');
+  { const sp = document.createElement('span'); sp.textContent = brand.slice(1).join(' '); document.querySelector('.brand').append(sp); }
+  document.title = brand.map(w => w[0] + w.slice(1).toLowerCase()).join(' ') + ' – Streamer setup';
+  for (const [id, name, t] of GAMES) { const o = document.createElement('option'); o.value = id; o.textContent = name + ' (' + t + ' s)'; $('game').appendChild(o); }
+  $('gamekeys').textContent = GAMES.map(([, n], i) => (i + 1) + ' ' + n).join(' · ');
   const clean = r => String(r || '').trim().slice(0, 32);
   try { $('room').value = localStorage.getItem('cpt-streamer') || ''; } catch (e) { }
   function update() {
@@ -157,14 +310,15 @@ html.touch body.playing { touch-action: none; }
     $('outs').classList.toggle('disabled', !ok);
     const q = new URLSearchParams({ room: name || 'YourName' });
     const num = (id, d) => { const v = Math.round(+$(id).value); return v > 0 ? v : d; };
-    if (num('time', 180) !== 180) q.set('time', num('time', 180));
+    if ($('game').value !== 'blocks') q.set('game', $('game').value);
+    if (num('time', 0) > 0) q.set('time', num('time', 0));
     if (num('lobby', 60) !== 60) q.set('lobby', num('lobby', 60));
     if (num('ready', 55) !== 55) q.set('ready', Math.min(99, num('ready', 55)));
     $('obs').textContent = base + 'overlay.html?' + q.toString();
     $('chat').textContent = base.replace(/^https?:\/\//, '').replace(/\/$/, '') + '/?room=' + encodeURIComponent(name || 'YourName');
     try { if (ok) localStorage.setItem('cpt-streamer', name); } catch (e) { }
   }
-  document.querySelectorAll('input').forEach(i => i.addEventListener('input', update));
+  document.querySelectorAll('input, select').forEach(i => i.addEventListener('input', update));
   document.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', async () => {
     const t = $(b.dataset.c).textContent;
     try { await navigator.clipboard.writeText(t); }

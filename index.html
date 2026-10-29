@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#070912">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Chat Plays Tetris</title>
+<title>Chat Arcade</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
@@ -67,8 +67,11 @@ html.touch .touch-only { display: block; }
 html.touch .keys-only { display: none !important; }
 html.touch, html.touch body { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
 html.touch input { -webkit-user-select: text; user-select: text; font-size: 18px; }
-#touchPads { display: none; }
-html.touch body.playing #touchPads { display: block; }
+#touchPads .pg { display: none; }
+html.touch body.playing[data-game=blocks] #pg-blocks,
+html.touch body.playing[data-game=snake] #pg-snake,
+html.touch body.playing[data-game=mines] #pg-mines,
+body.playing[data-game=words] #pg-words { display: block; }
 html.touch body.playing { touch-action: none; }
 .pad { position: fixed; bottom: calc(10px + env(safe-area-inset-bottom)); display: grid; gap: 8px; z-index: 5; }
 .pad button {
@@ -97,8 +100,37 @@ button.big.alt { background: linear-gradient(90deg, #2a2f4a, #3a3f60); }
 .linkbtn { background: none; border: 0; color: var(--muted); font: 600 15px Inter, sans-serif; cursor: pointer; padding: 8px; text-decoration: underline; }
 #s-solo { background: rgba(16,19,36,.94); }
 .pausebtn { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: 10px; z-index: 6; width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: rgba(40,46,80,.72); color: #fff; font-size: 16px; cursor: pointer; }
-html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-bottom)); right: 10px; }
-@media (orientation: landscape) { html.touch .pausebtn { bottom: auto; top: 10px; } }
+html.touch .pausebtn { top: calc(8px + env(safe-area-inset-top)); right: 8px; }
+
+/* ---------- multi-game ---------- */
+.solo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.solo-grid .big { font-size: 19px; padding: 13px; }
+.nextgame { margin-top: 10px; font-size: 20px; color: var(--muted); }
+.nextgame b { font-family: 'Russo One', sans-serif; font-weight: 400; color: #ffd820; font-size: 26px; margin-left: 4px; }
+.tagline { color: var(--muted); font-size: 14px; margin: 4px 0 0; }
+#howto .controls { margin-top: 16px; }
+#howto .hint { margin-top: 16px; }
+.reveal { font-family: 'Russo One', sans-serif; color: #ffd820; font-size: 20px; margin: 4px 0 0; }
+.reveal:empty { display: none; }
+/* snake d-pad */
+.pad.dpad { left: 50%; transform: translateX(-50%); width: min(260px, 70vw); grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 62px); gap: 6px; }
+.dpad .u { grid-column: 2; grid-row: 1; } .dpad .l { grid-column: 1; grid-row: 2; } .dpad .r { grid-column: 3; grid-row: 2; } .dpad .d { grid-column: 2; grid-row: 3; }
+@media (orientation: landscape) { .pad.dpad { left: calc(12px + env(safe-area-inset-left)); transform: none; width: min(220px, 30vw); grid-template-rows: repeat(3, 58px); } }
+/* mines tool switch */
+.pad.minespad { left: 10px; right: 10px; grid-template-columns: 1fr; grid-template-rows: 56px; }
+.pad.minespad button.flag { background: rgba(200,40,60,.8); }
+@media (orientation: landscape) { .pad.minespad { left: auto; right: calc(12px + env(safe-area-inset-right)); width: min(190px, 26vw); grid-template-rows: 110px; } }
+/* words keyboard (all devices) */
+.pad.kbd { left: 50%; transform: translateX(-50%); width: min(560px, calc(100vw - 12px)); display: flex; flex-direction: column; gap: 7px; }
+.krow { display: flex; gap: 5px; }
+.krow .half { flex: 0.5; }
+.pad.kbd button { flex: 1; height: 54px; font-size: 18px; border-radius: 8px; padding: 0; min-width: 0; }
+.pad.kbd button.kwide { flex: 1.6; font-size: 13px; }
+.pad.kbd button[data-st=g] { background: #3fbf55; border-color: #3fbf55; }
+.pad.kbd button[data-st=y] { background: #c9a722; border-color: #c9a722; }
+.pad.kbd button[data-st=x] { background: #23263a; color: #6d7394; }
+@media (orientation: landscape) and (max-height: 500px) { .pad.kbd button { height: 40px; font-size: 15px; } .pad.kbd { gap: 5px; } }
+html:not(.touch) .pad.kbd button { cursor: pointer; }
 </style>
 </head>
 <body>
@@ -106,14 +138,14 @@ html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-botto
 
 <main id="ui">
   <section id="s-join" class="card">
-    <h1>CHAT PLAYS <span>TETRIS</span></h1>
+    <h1 class="brand">CHAT <span>ARCADE</span></h1>
     <form id="joinForm" autocomplete="off">
       <label>Streamer name <input id="room" maxlength="32" required spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="whose stream are you watching?"></label>
       <label>Your name <input id="name" maxlength="16" required spellcheck="false" placeholder="your chat name"></label>
       <button type="submit" class="big">Join the match</button>
     </form>
-    <div class="or"><span>or</span></div>
-    <button type="button" id="soloBtn" class="big alt">Play solo</button>
+    <div class="or"><span>or play solo</span></div>
+    <div id="soloGames" class="solo-grid"></div>
     <p class="hint">Use your chat name so the stream knows who's who. Solo needs no stream and has no time limit. Works with keyboard or touch.</p>
     <p class="hint small"><a href="setup" style="color:var(--accent2)">Streamer? Get your overlay here →</a></p>
   </section>
@@ -125,19 +157,14 @@ html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-botto
 
   <section id="s-lobby" class="card hidden">
     <div class="who">Playing as <b id="lbName"></b></div>
+    <div class="nextgame">Next game: <b id="lbGame"></b></div>
+    <p id="lbTagline" class="tagline"></p>
     <button id="readyBtn" class="big ready">I'M READY</button>
     <p class="hint small keys-only">or press <kbd>R</kbd></p>
     <div id="lbInfo" class="info"></div>
     <div class="meter"><div id="lbBar"></div><i id="lbNeed"></i></div>
     <ul id="lbPlayers" class="players"></ul>
-    <p class="touch-only hint">Tap the buttons at the bottom of the screen. Hold ◀ ▶ ▼ to keep moving. Turning your phone sideways works too.</p>
-    <table class="controls keys-only">
-      <tr><td><kbd>A</kbd> <kbd>D</kbd> / <kbd>←</kbd> <kbd>→</kbd></td><td>Move</td></tr>
-      <tr><td><kbd>W</kbd> / <kbd>↑</kbd></td><td>Rotate (<kbd>Z</kbd>/<kbd>Q</kbd> counter-clockwise)</td></tr>
-      <tr><td><kbd>S</kbd> / <kbd>↓</kbd></td><td>Soft drop</td></tr>
-      <tr><td><kbd>Space</kbd></td><td>Hard drop</td></tr>
-      <tr><td><kbd>C</kbd> / <kbd>Enter</kbd></td><td>Hold</td></tr>
-    </table>
+    <div id="howto"></div>
   </section>
 
   <section id="s-wait" class="card hidden">
@@ -154,28 +181,51 @@ html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-botto
       <button id="soloRestart" class="big alt">New game</button>
       <button id="soloMenu" class="linkbtn">Back to menu</button>
     </div>
-    <p class="hint small keys-only"><kbd>P</kbd>/<kbd>Esc</kbd> pause · <kbd>R</kbd> new game</p>
+    <p class="hint small keys-only"><kbd>Esc</kbd> pause · <kbd>R</kbd> new game (on this screen)</p>
   </section>
 
   <section id="s-results" class="card hidden">
     <h2>Results</h2>
     <p id="resYou" class="you"></p>
+    <p id="resReveal" class="reveal"></p>
     <ol id="resList" class="results"></ol>
     <p class="hint">Next round's lobby opens in a moment…</p>
   </section>
 </main>
 
 <div id="touchPads">
-  <div id="padL" class="pad">
-    <button data-a="hold" class="wide">HOLD</button>
-    <button data-a="left" aria-label="Move left">◀</button>
-    <button data-a="down" aria-label="Soft drop">▼</button>
-    <button data-a="right" aria-label="Move right">▶</button>
+  <div id="pg-blocks" class="pg">
+    <div id="padL" class="pad blocksL">
+      <button data-a="hold" class="wide">HOLD</button>
+      <button data-a="left" aria-label="Move left">◀</button>
+      <button data-a="down" aria-label="Soft drop">▼</button>
+      <button data-a="right" aria-label="Move right">▶</button>
+    </div>
+    <div id="padR" class="pad blocksR">
+      <button data-a="rotccw" aria-label="Rotate left">⟲</button>
+      <button data-a="rotcw" aria-label="Rotate right">⟳</button>
+      <button data-a="hard" class="wide drop">DROP</button>
+    </div>
   </div>
-  <div id="padR" class="pad">
-    <button data-a="rotccw" aria-label="Rotate left">⟲</button>
-    <button data-a="rotcw" aria-label="Rotate right">⟳</button>
-    <button data-a="hard" class="wide drop">DROP</button>
+  <div id="pg-snake" class="pg">
+    <div class="pad dpad">
+      <button data-a="up" class="u" aria-label="Up">▲</button>
+      <button data-a="left" class="l" aria-label="Left">◀</button>
+      <button data-a="right" class="r" aria-label="Right">▶</button>
+      <button data-a="down" class="d" aria-label="Down">▼</button>
+    </div>
+  </div>
+  <div id="pg-mines" class="pg">
+    <div class="pad minespad">
+      <button data-a="flagmode" class="wide">⛏ DIG MODE</button>
+    </div>
+  </div>
+  <div id="pg-words" class="pg">
+    <div class="pad kbd">
+      <div class="krow"><button data-a="k:q">Q</button><button data-a="k:w">W</button><button data-a="k:e">E</button><button data-a="k:r">R</button><button data-a="k:t">T</button><button data-a="k:y">Y</button><button data-a="k:u">U</button><button data-a="k:i">I</button><button data-a="k:o">O</button><button data-a="k:p">P</button></div>
+      <div class="krow"><span class="half"></span><button data-a="k:a">A</button><button data-a="k:s">S</button><button data-a="k:d">D</button><button data-a="k:f">F</button><button data-a="k:g">G</button><button data-a="k:h">H</button><button data-a="k:j">J</button><button data-a="k:k">K</button><button data-a="k:l">L</button><span class="half"></span></div>
+      <div class="krow"><button data-a="k:enter" class="kwide">ENTER</button><button data-a="k:z">Z</button><button data-a="k:x">X</button><button data-a="k:c">C</button><button data-a="k:v">V</button><button data-a="k:b">B</button><button data-a="k:n">N</button><button data-a="k:m">M</button><button data-a="k:back" class="kwide" aria-label="Delete">⌫</button></div>
+    </div>
   </div>
 </div>
 
@@ -185,7 +235,7 @@ html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-botto
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
-/* Chat Plays Tetris – game engine following the Tetris Guideline:
+/* Blocks – game engine following the common falling-block guideline rules:
  * SRS rotation + wall kicks, 7-bag randomizer, hold (once per piece), ghost piece,
  * 5-piece preview, 0.5 s lock delay with 15 move resets, guideline gravity curve,
  * fixed-goal levelling (10 lines / level) and guideline scoring
@@ -414,7 +464,7 @@ html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-botto
       let pts = base * L;
       const labels = [];
       if (tspin) labels.push((tspin === 1 ? 'MINI T-SPIN' : 'T-SPIN') + ['', ' SINGLE', ' DOUBLE', ' TRIPLE'][cleared]);
-      else if (cleared) labels.push(['', 'SINGLE', 'DOUBLE', 'TRIPLE', 'TETRIS'][cleared]);
+      else if (cleared) labels.push(['', 'SINGLE', 'DOUBLE', 'TRIPLE', 'QUAD'][cleared]);
 
       const wasB2B = this.b2b;
       if (cleared > 0) {
@@ -552,17 +602,778 @@ html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-botto
     for (const [x, y] of cells) drawCell(ctx, cx - w / 2 + (x - minX) * s, cy - h / 2 + (y - minY) * s, s, code, alpha);
   }
 
-  root.Tetris = { Game, COLS, ROWS, VISIBLE, TOP, TYPES, COLORS, CELLS, drawCell, drawGhostCell, drawPreview, gravityMs, mulberry32 };
+  root.BlocksEngine = { Game, COLS, ROWS, VISIBLE, TOP, TYPES, COLORS, CELLS, drawCell, drawGhostCell, drawPreview, gravityMs, mulberry32 };
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
 <script>
-/* Chat Plays Tetris – networking.
+/* Shared bits for all games: registry, branding, drawing helpers, layout. */
+(function (root) {
+  'use strict';
+  const Games = { list: [], byId: {} };
+
+  // ---- branding: change the site name here (first part white, second part gradient) ----
+  Games.BRAND = ['CHAT', 'ARCADE'];
+  Games.brandText = () => Games.BRAND.join(' ');
+
+  Games.register = def => { Games.list.push(def); Games.byId[def.id] = def; };
+  Games.get = id => Games.byId[id] || Games.list[0];
+
+  Games.rng = function (a) {
+    a >>>= 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+
+  Games.fmt = ms => { if (!isFinite(ms)) return '∞'; const s = Math.max(0, Math.floor(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  Games.fmtDown = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  Games.font = (px, w = 400) => `${w} ${Math.max(1, Math.round(px))}px 'Russo One', Inter, system-ui, sans-serif`;
+  Games.rr = function (ctx, x, y, w, h, r) { ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); };
+  Games.box = function (ctx, x, y, w, h) {
+    ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+  };
+  Games.frame = function (ctx, x, y, w, h) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
+    ctx.strokeStyle = 'rgba(180,76,255,0.6)'; ctx.lineWidth = 2; ctx.strokeRect(x - 3, y - 3, w + 6, h + 6);
+  };
+  Games.fit = function (ctx, text, maxW) {
+    text = String(text);
+    if (ctx.measureText(text).width <= maxW) return text;
+    let t = text;
+    while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    return t + '…';
+  };
+
+  // Standard stats from the shell + game: [[label, value, color], ...]
+  Games.baseStats = function (inst, view, extra) {
+    const s = [['SCORE', inst.score.toLocaleString(), '#fff']].concat(extra || []);
+    s.push(['TIME', view.timeTxt, view.timeCol]);
+    if (view.rank) s.push(['RANK', '#' + view.rank.rank + '/' + view.rank.total, view.rank.rank === 1 ? '#ffd820' : '#fff']);
+    else if (view.best != null) s.push(['BEST', Math.max(view.best, inst.score).toLocaleString(), inst.score > view.best && view.best > 0 ? '#ffd820' : '#fff']);
+    return s;
+  };
+
+  // Draw stats as a column (x,y,w) or as a row (x,y,w) — returns height used
+  Games.drawStats = function (ctx, items, x, y, w, unit, asRow) {
+    if (asRow) {
+      const cw = w / items.length;
+      items.forEach(([n, v, c], i) => {
+        const cx = x + cw * i + cw / 2;
+        ctx.textAlign = 'center'; ctx.fillStyle = '#9aa3c7'; ctx.font = Games.font(unit * 0.42); ctx.fillText(n, cx, y + unit * 0.45);
+        let sz = unit * 0.72; ctx.font = Games.font(sz);
+        while (sz > unit * 0.3 && ctx.measureText(String(v)).width > cw - 4) { sz *= 0.9; ctx.font = Games.font(sz); }
+        ctx.fillStyle = c || '#fff'; ctx.fillText(String(v), cx, y + unit * 1.2);
+      });
+      return unit * 1.5;
+    }
+    let yy = y;
+    for (const [n, v, c] of items) {
+      ctx.textAlign = 'left'; ctx.fillStyle = '#9aa3c7'; ctx.font = Games.font(unit * 0.45); ctx.fillText(n, x, yy + unit * 0.45);
+      let sz = unit * 0.8; ctx.font = Games.font(sz);
+      while (sz > unit * 0.3 && ctx.measureText(String(v)).width > w) { sz *= 0.9; ctx.font = Games.font(sz); }
+      ctx.fillStyle = c || '#fff'; ctx.fillText(String(v), x, yy + unit * 1.3);
+      yy += unit * 1.75;
+    }
+    return yy - y;
+  };
+
+  /* Fit a cols×rows board plus a stats area into `area`.
+   * Wide areas: stats column on the right (sideCells wide). Narrow areas: a stats row on top. */
+  Games.layout = function (area, cols, rows, sideCells, maxCell) {
+    const right = Math.min(area.w / (cols + sideCells + 0.6), area.h / (rows + 0.4));
+    const top = Math.min(area.w / (cols + 0.4), area.h / (rows + 2.0));
+    const useTop = top > right * 1.08;
+    let cell = Math.floor(Math.max(6, useTop ? top : right));
+    if (maxCell) cell = Math.min(cell, maxCell);
+    const bw = cell * cols, bh = cell * rows;
+    if (useTop) {
+      const tot = bh + cell * 1.7;
+      const bx = Math.round(area.x + (area.w - bw) / 2), y0 = Math.round(area.y + (area.h - tot) / 2);
+      return { cell, bx, by: y0 + Math.round(cell * 1.7), bw, bh, statsRow: { x: bx, y: y0, w: bw } };
+    }
+    const tot = bw + cell * (sideCells + 0.6);
+    const bx = Math.round(area.x + (area.w - tot) / 2), by = Math.round(area.y + (area.h - bh) / 2);
+    return { cell, bx, by, bw, bh, statsCol: { x: bx + bw + cell * 0.6, y: by, w: cell * sideCells } };
+  };
+
+  root.Games = Games;
+})(window);
+</script>
+<script>
+/* Blocks – the falling-block game (engine in js/blocks-engine.js) wrapped in the common game interface. */
+(function () {
+  'use strict';
+  const T = window.BlocksEngine, G = window.Games;
+  const KEYS = {
+    ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
+    ArrowDown: 'down', KeyS: 'down', ArrowUp: 'rotcw', KeyW: 'rotcw', KeyX: 'rotcw',
+    KeyZ: 'rotccw', KeyQ: 'rotccw', Space: 'hard', KeyC: 'hold', Enter: 'hold', NumpadEnter: 'hold',
+  };
+
+  G.register({
+    id: 'blocks', name: 'Blocks', defaultTime: 180, cols: 10, rows: 20,
+    tagline: 'Stack falling blocks and clear lines. Most points wins.',
+    howtoKeys: [
+      ['<kbd>A</kbd> <kbd>D</kbd> / <kbd>←</kbd> <kbd>→</kbd>', 'Move'],
+      ['<kbd>W</kbd> / <kbd>↑</kbd>', 'Rotate (<kbd>Z</kbd>/<kbd>Q</kbd> other way)'],
+      ['<kbd>S</kbd> / <kbd>↓</kbd>', 'Soft drop'],
+      ['<kbd>Space</kbd>', 'Hard drop'],
+      ['<kbd>C</kbd> / <kbd>Enter</kbd>', 'Hold'],
+    ],
+    howtoTouch: 'Use the buttons at the bottom. Hold ◀ ▶ ▼ to keep moving.',
+    doneLabel: 'DONE', outLabel: 'TOPPED OUT',
+
+    create(seed) {
+      const g = new T.Game(seed >>> 0);
+      const inst = {
+        events: g.events,
+        get score() { return g.score; },
+        get state() { return g.over ? 'out' : 'play'; },
+        get tb() { return g.lines; },
+        update(dt) { if (g.active) g.update(dt); },
+        key(code, down, e) {
+          const a = KEYS[code]; if (!a) return false;
+          if (down) { if (!e || !e.repeat) g.press(a); } else g.release(a);
+          return true;
+        },
+        btn(a, down) { if (down) g.press(a); else g.release(a); },
+        releaseAll() { g.releaseAll(); },
+        finish() { g.finished = true; g.releaseAll(); },
+        snapshot() { return g.snapshot(); },
+        info() { return 'L' + g.level + ' · ' + g.lines; },
+        endText() { return g.lines + ' lines · Level ' + g.level; },
+        render(ctx, area, view) { return render(ctx, g, inst, area, view); },
+      };
+      return inst;
+    },
+
+    drawMini(ctx, snap, x, y, cell, dim) {
+      for (let i = 0; i < 200 && i < snap.length; i++) {
+        const v = snap.charCodeAt(i) - 48;
+        if (v > 0 && v < 8) T.drawCell(ctx, x + (i % 10) * cell, y + Math.floor(i / 10) * cell, cell, v, dim);
+      }
+    },
+  });
+
+  function drawBoard(ctx, g, bx, by, cell) {
+    const bw = cell * 10, bh = cell * 20;
+    G.frame(ctx, bx, by, bw, bh);
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let x = 1; x < 10; x++) { ctx.moveTo(bx + x * cell + .5, by); ctx.lineTo(bx + x * cell + .5, by + bh); }
+    for (let y = 1; y < 20; y++) { ctx.moveTo(bx, by + y * cell + .5); ctx.lineTo(bx + bw, by + y * cell + .5); }
+    ctx.stroke();
+    const dim = g.over ? 0.35 : 1;
+    for (let r = 0; r < 20; r++) for (let c = 0; c < 10; c++) {
+      const v = g.board[(T.TOP + r) * T.COLS + c];
+      if (v) T.drawCell(ctx, bx + c * cell, by + r * cell, cell, v, dim);
+    }
+    if (g.piece && !g.over) {
+      const code = T.TYPES.indexOf(g.piece.type) + 1;
+      if (!g.finished) for (const [x, y] of g.pieceCells(g.piece, g.ghostDistance())) if (y >= T.TOP) T.drawGhostCell(ctx, bx + x * cell, by + (y - T.TOP) * cell, cell, code);
+      for (const [x, y] of g.pieceCells()) if (y >= T.TOP) T.drawCell(ctx, bx + x * cell, by + (y - T.TOP) * cell, cell, code, g.finished ? 0.5 : 1);
+    }
+  }
+
+  function render(ctx, g, inst, area, view) {
+    const stats = G.baseStats(inst, view, [['LEVEL', g.level, '#fff'], ['LINES', g.lines, '#fff']]);
+    g.refill();
+    if (!view.touch) {
+      // desktop: hold + stats left, board centre, next right
+      const cell = Math.max(8, Math.floor(Math.min((area.h - 50) / 21, area.w / 23)));
+      const bw = cell * 10, bh = cell * 20;
+      const ox = Math.round(area.x + (area.w - cell * 23) / 2), by = Math.round(area.y + (area.h - bh) / 2 + cell * 0.4);
+      const bx = ox + cell * 6.5, nx = bx + bw + cell * 1.5;
+      drawBoard(ctx, g, bx, by, cell);
+      ctx.fillStyle = '#9aa3c7'; ctx.font = G.font(cell * 0.55); ctx.textAlign = 'left';
+      ctx.fillText('HOLD', ox, by - cell * 0.3); ctx.fillText('NEXT', nx, by - cell * 0.3);
+      G.box(ctx, ox, by, cell * 5, cell * 3.4);
+      T.drawPreview(ctx, g.hold, ox + cell * 2.5, by + cell * 1.7, cell * 0.85, g.holdUsed ? 0.35 : 1);
+      G.box(ctx, nx, by, cell * 5, cell * 13.2);
+      for (let i = 0; i < 5; i++) T.drawPreview(ctx, g.queue[i], nx + cell * 2.5, by + cell * (1.6 + i * 2.5), cell * (i === 0 ? 0.9 : 0.72));
+      G.drawStats(ctx, stats.slice(0, 3), ox, by + cell * 4.4, cell * 5, cell * 1.05);
+      G.drawStats(ctx, stats.slice(3), nx, by + cell * 13.9, cell * 5, cell * 1.05);
+      ctx.textAlign = 'center'; ctx.fillStyle = '#9aa3c7'; ctx.font = G.font(cell * 0.6);
+      ctx.fillText(view.name, bx + bw / 2, by - cell * 0.35);
+      return { x: bx, y: by, w: bw, h: bh, cell };
+    }
+    // phone: board + narrow side column
+    const cell = Math.max(6, Math.floor(Math.min(area.w / 14.9, area.h / 20.4)));
+    const bw = cell * 10, bh = cell * 20, cw = cell * 4.4;
+    const bx = Math.round(area.x + (area.w - (bw + cell * 0.5 + cw)) / 2), by = Math.round(area.y + (area.h - bh) / 2);
+    const sx = bx + bw + cell * 0.5;
+    drawBoard(ctx, g, bx, by, cell);
+    let y = by;
+    const lbl = t => { ctx.fillStyle = '#9aa3c7'; ctx.font = G.font(cell * 0.42); ctx.textAlign = 'left'; ctx.fillText(t, sx, y + cell * 0.45); };
+    lbl('HOLD'); y += cell * 0.6;
+    G.box(ctx, sx, y, cw, cell * 2.6);
+    T.drawPreview(ctx, g.hold, sx + cw / 2, y + cell * 1.3, cell * 0.7, g.holdUsed ? 0.35 : 1); y += cell * 3;
+    lbl('NEXT'); y += cell * 0.6;
+    G.box(ctx, sx, y, cw, cell * 6.6);
+    for (let i = 0; i < 3; i++) T.drawPreview(ctx, g.queue[i], sx + cw / 2, y + cell * (1.2 + i * 2.1), cell * (i === 0 ? 0.72 : 0.58));
+    y += cell * 7.1;
+    G.drawStats(ctx, stats, sx, y, cw, cell * 0.88);
+    return { x: bx, y: by, w: bw, h: bh, cell };
+  }
+})();
+</script>
+<script>
+/* Snake – eat apples, don't hit the wall or yourself. One life. */
+(function () {
+  'use strict';
+  const G = window.Games;
+  const N = 16;                       // board is N×N
+  const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  const KEYS = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
+
+  G.register({
+    id: 'snake', name: 'Snake', defaultTime: 120, cols: N, rows: N,
+    tagline: 'Eat apples to grow. Hit a wall or yourself and you are out.',
+    howtoKeys: [
+      ['<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows', 'Turn'],
+      ['', 'Every apple is 10 points. You get faster as you grow.'],
+    ],
+    howtoTouch: 'Swipe on the board or use the arrow buttons.',
+    doneLabel: 'DONE', outLabel: 'CRASHED',
+
+    create(seed) {
+      const rnd = G.rng(seed ^ 0x5a17);
+      let body = [[6, 8], [5, 8], [4, 8]];          // head first
+      let dir = 'right', queue = [], apples = 0, dead = false, alive = 0, acc = 0, food = null, lastMove = 0;
+      const occupied = (x, y) => body.some(([bx, by]) => bx === x && by === y);
+      function placeFood() {
+        const free = [];
+        for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (!occupied(x, y)) free.push([x, y]);
+        food = free.length ? free[Math.floor(rnd() * free.length)] : null;
+      }
+      placeFood();
+      const stepMs = () => Math.max(65, 150 - apples * 4);
+      const opposite = { up: 'down', down: 'up', left: 'right', right: 'left' };
+      function turn(d) {
+        const last = queue.length ? queue[queue.length - 1] : dir;
+        if (d === last || d === opposite[last] || queue.length >= 3) return;
+        queue.push(d);
+      }
+      let swipe = null;
+
+      const inst = {
+        events: [],
+        score: 0,
+        get state() { return dead ? 'out' : 'play'; },
+        get tb() { return alive; },
+        update(dt) {
+          if (dead) return;
+          alive += dt; acc += dt;
+          while (acc >= stepMs() && !dead) {
+            acc -= stepMs();
+            if (queue.length) dir = queue.shift();
+            const [dx, dy] = DIRS[dir], [hx, hy] = body[0];
+            const nx = hx + dx, ny = hy + dy;
+            const eating = food && nx === food[0] && ny === food[1];
+            const tail = body[body.length - 1];
+            const hitSelf = body.some(([bx, by], i) => bx === nx && by === ny && !(i === body.length - 1 && !eating));
+            if (nx < 0 || ny < 0 || nx >= N || ny >= N || hitSelf) {
+              dead = true; inst.events.push({ text: 'OUCH!', big: false });
+              break;
+            }
+            body.unshift([nx, ny]);
+            if (eating) {
+              apples++; inst.score += 10;
+              if (apples % 5 === 0) inst.events.push({ text: apples + ' APPLES', big: true, pts: 10 });
+              placeFood();
+            } else body.pop();
+            lastMove = performance.now();
+          }
+        },
+        key(code, down) { const d = KEYS[code]; if (!d) return false; if (down) turn(d); return true; },
+        btn(a, down) { if (down && DIRS[a]) turn(a); },
+        pointer(kind, x, y) {
+          if (kind === 'down') swipe = { x, y, used: false };
+          else if (kind === 'move' && swipe && !swipe.used) {
+            const dx = x - swipe.x, dy = y - swipe.y;
+            if (Math.hypot(dx, dy) > 24) {
+              turn(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+              swipe = { x, y, used: false };   // allow a second swipe in the same touch
+            }
+          } else if (kind === 'up') swipe = null;
+        },
+        releaseAll() { swipe = null; },
+        finish() { },
+        snapshot() {
+          const a = new Array(N * N).fill('0');
+          body.forEach(([x, y], i) => { a[y * N + x] = i === 0 ? '2' : '1'; });
+          if (food) a[food[1] * N + food[0]] = '3';
+          return a.join('');
+        },
+        info() { return 'Length ' + body.length; },
+        endText() { return apples + ' apples · length ' + body.length + ' · survived ' + G.fmt(alive); },
+        render(ctx, area, view) {
+          const L = G.layout(area, N, N, 5.2, view.touch ? 0 : 46);
+          const { cell, bx, by, bw, bh } = L;
+          G.frame(ctx, bx, by, bw, bh);
+          drawGrid(ctx, bx, by, cell);
+          // food
+          if (food) drawApple(ctx, bx + food[0] * cell, by + food[1] * cell, cell, 1);
+          // body
+          body.forEach(([x, y], i) => drawSeg(ctx, bx + x * cell, by + y * cell, cell, i === 0 ? 2 : 1, dead ? 0.4 : 1, i === 0 ? dir : null));
+          const stats = G.baseStats(inst, view, [['LENGTH', body.length, '#fff']]);
+          if (L.statsRow) G.drawStats(ctx, stats, L.statsRow.x, L.statsRow.y, L.statsRow.w, cell * 1.0, true);
+          else {
+            ctx.textAlign = 'left'; ctx.fillStyle = '#9aa3c7'; ctx.font = G.font(cell * 0.5);
+            ctx.fillText(G.fit(ctx, view.name, L.statsCol.w), L.statsCol.x, L.statsCol.y + cell * 0.5);
+            G.drawStats(ctx, stats, L.statsCol.x, L.statsCol.y + cell * 1.1, L.statsCol.w, cell * 1.1);
+          }
+          return { x: bx, y: by, w: bw, h: bh, cell };
+        },
+      };
+      return inst;
+    },
+
+    drawMini(ctx, snap, x, y, cell, dim) {
+      drawGrid(ctx, x, y, cell, true);
+      for (let i = 0; i < N * N && i < snap.length; i++) {
+        const v = snap.charCodeAt(i) - 48;
+        const cx = x + (i % N) * cell, cy = y + Math.floor(i / N) * cell;
+        if (v === 3) drawApple(ctx, cx, cy, cell, dim);
+        else if (v === 1 || v === 2) drawSeg(ctx, cx, cy, cell, v, dim);
+      }
+    },
+  });
+
+  function drawGrid(ctx, x, y, cell, light) {
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      ctx.fillStyle = (r + c) % 2 ? 'rgba(255,255,255,0.035)' : 'rgba(255,255,255,0.015)';
+      ctx.fillRect(x + c * cell, y + r * cell, cell, cell);
+    }
+  }
+  function drawSeg(ctx, x, y, s, kind, alpha, dir) {
+    ctx.globalAlpha = alpha;
+    const p = Math.max(0.5, s * 0.08);
+    ctx.fillStyle = kind === 2 ? '#7dff8f' : '#44e05c';
+    G.rr(ctx, x + p, y + p, s - p * 2, s - p * 2, s * 0.25); ctx.fill();
+    if (kind === 2 && s >= 10) { // eyes
+      ctx.fillStyle = '#0b1a0e';
+      const e = s * 0.12, [ox, oy] = dir === 'up' ? [0, -1] : dir === 'down' ? [0, 1] : dir === 'left' ? [-1, 0] : [1, 0];
+      const cx = x + s / 2 + ox * s * 0.18, cy = y + s / 2 + oy * s * 0.18;
+      const px = oy !== 0 ? s * 0.18 : 0, py = ox !== 0 ? s * 0.18 : 0;
+      ctx.beginPath(); ctx.arc(cx - px, cy - py, e, 0, 7); ctx.arc(cx + px, cy + py, e, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  function drawApple(ctx, x, y, s, alpha) {
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#ff3d50';
+    ctx.beginPath(); ctx.arc(x + s / 2, y + s * 0.55, s * 0.36, 0, 7); ctx.fill();
+    if (s >= 8) { ctx.fillStyle = '#44e05c'; ctx.fillRect(x + s * 0.48, y + s * 0.08, s * 0.1, s * 0.2); }
+    ctx.globalAlpha = 1;
+  }
+})();
+</script>
+<script>
+/* Mines race – everyone gets the same board. Hitting a mine stuns you for 3 s and costs 100 points. */
+(function () {
+  'use strict';
+  const G = window.Games;
+  const W = 12, H = 12, MINES = 22, STUN = 3000;
+  const NUMCOL = [null, '#4aa3ff', '#44e05c', '#ff5d6c', '#b56cff', '#ff9022', '#1fd6f5', '#e8e8e8', '#9aa3c7'];
+
+  // Deterministic board from the shared seed: same mines + same pre-opened start area for everybody
+  function makeBoard(seed) {
+    const rnd = G.rng(seed ^ 0x3e11);
+    const mine = new Uint8Array(W * H);
+    let n = 0;
+    while (n < MINES) { const i = Math.floor(rnd() * W * H); if (!mine[i]) { mine[i] = 1; n++; } }
+    const num = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      let c = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const X = x + dx, Y = y + dy;
+        if ((dx || dy) && X >= 0 && Y >= 0 && X < W && Y < H && mine[Y * W + X]) c++;
+      }
+      num[y * W + x] = c;
+    }
+    // starting cell: a zero, preferably near the middle
+    let start = -1, bestD = 1e9;
+    for (let i = 0; i < W * H; i++) if (!mine[i] && num[i] === 0) {
+      const d = Math.abs(i % W - W / 2 + .5) + Math.abs(Math.floor(i / W) - H / 2 + .5) + rnd() * 2;
+      if (d < bestD) { bestD = d; start = i; }
+    }
+    if (start < 0) for (let i = 0; i < W * H; i++) if (!mine[i]) { start = i; break; }
+    return { mine, num, start };
+  }
+
+  G.register({
+    id: 'mines', name: 'Mines', defaultTime: 180, cols: W, rows: H,
+    tagline: 'Same minefield for everyone. Clear it first! A mine stuns you for 3 seconds.',
+    howtoKeys: [
+      ['Left click', 'Dig (click a number to open around it)'],
+      ['Right click', 'Flag'],
+      ['<kbd>WASD</kbd> / arrows + <kbd>Space</kbd> / <kbd>F</kbd>', 'Keyboard: move, dig, flag'],
+    ],
+    howtoTouch: 'Tap to dig. Long-press or switch to 🚩 to flag. Tap a number to open around it.',
+    doneLabel: 'CLEARED',
+
+    create(seed) {
+      const B = makeBoard(seed);
+      const st = new Uint8Array(W * H);   // 0 hidden, 1 open, 2 flag, 3 exploded
+      let opened = 0, booms = 0, elapsed = 0, stunUntil = 0, done = false, bonus = 0, cur = B.start, flagMode = false;
+      const SAFE = W * H - MINES;
+      let lastLayout = null, press = null;
+
+      function open(i) {
+        if (st[i] !== 0) return;
+        if (B.mine[i]) {
+          st[i] = 3; booms++; stunUntil = elapsed + STUN;
+          inst.events.push({ text: 'BOOM! −100', big: false });
+          return;
+        }
+        const stack = [i];
+        while (stack.length) {
+          const j = stack.pop();
+          if (st[j] !== 0 || B.mine[j]) continue;
+          st[j] = 1; opened++;
+          if (B.num[j] === 0) {
+            const x = j % W, y = Math.floor(j / W);
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+              const X = x + dx, Y = y + dy;
+              if (X >= 0 && Y >= 0 && X < W && Y < H) stack.push(Y * W + X);
+            }
+          }
+        }
+        if (opened >= SAFE && !done) {
+          done = true;
+          bonus = Math.max(200, 2000 - Math.floor(elapsed / 1000) * 10);
+          inst.events.push({ text: 'CLEARED!', big: true, pts: bonus });
+          for (let k = 0; k < W * H; k++) if (B.mine[k] && st[k] === 0) st[k] = 2;
+        }
+      }
+      function neighbours(i) {
+        const x = i % W, y = Math.floor(i / W), out = [];
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const X = x + dx, Y = y + dy;
+          if ((dx || dy) && X >= 0 && Y >= 0 && X < W && Y < H) out.push(Y * W + X);
+        }
+        return out;
+      }
+      const stunned = () => elapsed < stunUntil;
+      function dig(i) {
+        if (done || stunned()) return;
+        if (st[i] === 1 && B.num[i] > 0) {           // chord
+          const nb = neighbours(i);
+          const flags = nb.filter(j => st[j] === 2 || st[j] === 3).length;
+          if (flags === B.num[i]) for (const j of nb) if (st[j] === 0) open(j);
+        } else if (st[i] === 0) open(i);
+      }
+      function flag(i) {
+        if (done || stunned()) return;
+        if (st[i] === 0) st[i] = 2; else if (st[i] === 2) st[i] = 0;
+      }
+      open(B.start);
+
+      function cellAt(x, y) {
+        if (!lastLayout) return -1;
+        const { bx, by, cell } = lastLayout;
+        const cx = Math.floor((x - bx) / cell), cy = Math.floor((y - by) / cell);
+        return cx >= 0 && cy >= 0 && cx < W && cy < H ? cy * W + cx : -1;
+      }
+
+      const inst = {
+        events: [],
+        get score() { return Math.max(0, opened * 10 + bonus - booms * 100); },
+        get state() { return done ? 'done' : 'play'; },
+        get tb() { return done ? -elapsed : opened; },
+        get flagMode() { return flagMode; },
+        update(dt) { if (!done) elapsed += dt; },
+        key(code, down) {
+          if (!down) return ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'Enter', 'KeyF', 'KeyE'].includes(code);
+          let x = cur % W, y = Math.floor(cur / W);
+          switch (code) {
+            case 'ArrowUp': case 'KeyW': y = (y + H - 1) % H; break;
+            case 'ArrowDown': case 'KeyS': y = (y + 1) % H; break;
+            case 'ArrowLeft': case 'KeyA': x = (x + W - 1) % W; break;
+            case 'ArrowRight': case 'KeyD': x = (x + 1) % W; break;
+            case 'Space': case 'Enter': dig(cur); return true;
+            case 'KeyF': case 'KeyE': flag(cur); return true;
+            default: return false;
+          }
+          cur = y * W + x; return true;
+        },
+        btn(a, down) { if (down && a === 'flagmode') flagMode = !flagMode; },
+        pointer(kind, x, y, button, ptype) {
+          const i = cellAt(x, y);
+          if (kind === 'down') {
+            if (i < 0) return;
+            cur = i;
+            if (button === 2) { flag(i); press = null; return; }
+            press = { i, t: performance.now(), long: false, touch: ptype !== 'mouse' };
+            if (press.touch) press.timer = setTimeout(() => { if (press && press.i === i) { press.long = true; flag(i); if (navigator.vibrate) try { navigator.vibrate(20); } catch (e) { } } }, 380);
+          } else if (kind === 'move') {
+            if (press && i !== press.i) { clearTimeout(press.timer); press = null; }
+          } else if (kind === 'up') {
+            if (!press) return;
+            clearTimeout(press.timer);
+            if (!press.long && i === press.i) { if (flagMode && st[i] !== 1) flag(i); else dig(i); }
+            press = null;
+          }
+        },
+        releaseAll() { if (press) clearTimeout(press.timer); press = null; },
+        syncPad(el) {
+          const b = el.querySelector('[data-a=flagmode]'); if (!b) return;
+          const t = flagMode ? '🚩 FLAG MODE' : '⛏ DIG MODE';
+          if (b.textContent !== t) { b.textContent = t; b.classList.toggle('flag', flagMode); }
+        },
+        finish() { },
+        snapshot() {
+          let s = '';
+          for (let i = 0; i < W * H; i++) s += st[i] === 0 ? '.' : st[i] === 2 ? 'f' : st[i] === 3 ? 'x' : String(B.num[i]);
+          return s;
+        },
+        info() { return Math.floor(opened / SAFE * 100) + '%' + (booms ? ' · 💥' + booms : ''); },
+        endText() { return (done ? 'Cleared in ' + G.fmt(elapsed) : Math.floor(opened / SAFE * 100) + '% cleared') + ' · ' + booms + ' boom' + (booms === 1 ? '' : 's'); },
+        render(ctx, area, view) {
+          const L = G.layout(area, W, H, 5.2, view.touch ? 0 : 58);
+          lastLayout = L;
+          const { cell, bx, by, bw, bh } = L;
+          G.frame(ctx, bx, by, bw, bh);
+          for (let i = 0; i < W * H; i++) {
+            const s = st[i] === 0 ? '.' : st[i] === 2 ? 'f' : st[i] === 3 ? 'x' : String(B.num[i]);
+            drawTile(ctx, bx + (i % W) * cell, by + Math.floor(i / W) * cell, cell, s, 1);
+          }
+          if (!view.touch && !done) {
+            ctx.strokeStyle = '#ffd820'; ctx.lineWidth = 2;
+            ctx.strokeRect(bx + (cur % W) * cell + 1, by + Math.floor(cur / W) * cell + 1, cell - 2, cell - 2);
+          }
+          if (stunned()) {
+            ctx.fillStyle = 'rgba(255,40,60,0.28)'; ctx.fillRect(bx, by, bw, bh);
+            ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = G.font(cell * 1.3);
+            ctx.fillText('BOOM! ' + ((stunUntil - elapsed) / 1000).toFixed(1) + 's', bx + bw / 2, by + bh / 2);
+          }
+          let flags = 0; for (let i = 0; i < W * H; i++) if (st[i] === 2 || st[i] === 3) flags++;
+          const stats = G.baseStats(inst, view, [['MINES', MINES - flags, '#fff'], ['CLEARED', Math.floor(opened / SAFE * 100) + '%', done ? '#44e05c' : '#fff']]);
+          if (L.statsRow) G.drawStats(ctx, stats, L.statsRow.x, L.statsRow.y, L.statsRow.w, cell * 0.95, true);
+          else {
+            ctx.textAlign = 'left'; ctx.fillStyle = '#9aa3c7'; ctx.font = G.font(cell * 0.5);
+            ctx.fillText(G.fit(ctx, view.name, L.statsCol.w), L.statsCol.x, L.statsCol.y + cell * 0.5);
+            G.drawStats(ctx, stats, L.statsCol.x, L.statsCol.y + cell * 1.1, L.statsCol.w, cell * 1.0);
+          }
+          return { x: bx, y: by, w: bw, h: bh, cell };
+        },
+      };
+      return inst;
+    },
+
+    drawMini(ctx, snap, x, y, cell, dim) {
+      for (let i = 0; i < W * H; i++) drawTile(ctx, x + (i % W) * cell, y + Math.floor(i / W) * cell, cell, snap[i] || '.', dim, true);
+    },
+  });
+
+  function drawTile(ctx, x, y, s, c, alpha, mini) {
+    ctx.globalAlpha = alpha;
+    const p = s >= 10 ? 1 : 0.5;
+    if (c === '.' || c === 'f') {
+      ctx.fillStyle = '#3a4170'; ctx.fillRect(x + p, y + p, s - p * 2, s - p * 2);
+      if (s >= 10) { ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(x + p, y + p, s - p * 2, Math.max(1, s * 0.1)); }
+      if (c === 'f') {
+        ctx.fillStyle = '#ff3d50';
+        ctx.beginPath(); ctx.moveTo(x + s * 0.38, y + s * 0.2); ctx.lineTo(x + s * 0.75, y + s * 0.36); ctx.lineTo(x + s * 0.38, y + s * 0.52); ctx.fill();
+        ctx.fillStyle = '#eef1ff'; ctx.fillRect(x + s * 0.34, y + s * 0.2, Math.max(1, s * 0.07), s * 0.58);
+      }
+    } else {
+      ctx.fillStyle = c === 'x' ? '#a3162a' : 'rgba(255,255,255,0.06)';
+      ctx.fillRect(x + p, y + p, s - p * 2, s - p * 2);
+      if (c === 'x') {
+        ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(x + s / 2, y + s / 2, s * 0.26, 0, 7); ctx.fill();
+      } else if (c !== '0' && !mini || (mini && s >= 9 && c !== '0')) {
+        const n = +c;
+        ctx.fillStyle = NUMCOL[n] || '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = G.font(s * 0.62); ctx.fillText(c, x + s / 2, y + s / 2 + s * 0.04); ctx.textBaseline = 'alphabetic';
+      } else if (mini && c !== '0') {
+        ctx.fillStyle = NUMCOL[+c] || '#fff'; ctx.globalAlpha = alpha * 0.5; ctx.fillRect(x + s * 0.3, y + s * 0.3, s * 0.4, s * 0.4);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+})();
+</script>
+<script>
+/* Word lists for the Words game, built from SCOWL (wordlist-english on npm).
+ * Copyright 2000-2016 Kevin Atkinson. Permission to use, copy, modify, distribute and sell these word lists ... is hereby granted without fee (see the SCOWL copyright notice). */
+window.WORDS_ANSWERS='abideabortaboutaboveabuseacornactoracuteadaptadmitadoptadultafteragainagentagingagonyagreeaheadalarmalbumalertalienalignalikealiveallowalonealongaloudalphaalteramazeamberamendamongampleamuseangelangerangleangryannoyapartappalappleapplyarenaarguearisearosearrayarrowasideassetaudioavoidawaitawakeawardawareawfulaxiombadgebadlybanalbasicbasisbatchbeachbeardbeastbeganbeginbegunbeingbelowbenchbiblebigotbirthblackbladeblameblankblastblessblindblinkblissblockbloodblownblurbboardbogusbonusboostborneboundbrainbrakebrandbrassbravebreadbreakbreedbrickbriefbringbroadbrokebrownbrushbuildbuiltbunchburntburstbuyercablecarrycatchcatercauseceasechainchairchalkcharmchartchasecheapcheatcheckcheekcheerchesschestchiefchildchoirchordchosechuckchunkcidercircacivilclaimclashclasscleanclearclickcliffclimbclockclonecloseclothcloudcoachcoastcoloncolorcomiccommacoughcouldcountcourtcovercraftcrampcrashcrasscrawlcrazycreamcreedcreepcrimecrispcrosscrowdcrowncrudecruelcrushcubiccurlycurrycursecurvecyclecynicdailydancedatumdealtdeathdebugdecaydeitydelaydeltadensedepthdeterdevildiarydigitdinerdirtydiscoditchdittododgedogmadoingdoubtdozendraftdraindramadrankdrawndreaddreamdressdriftdrilldrinkdrivedrovedrowndummydustydyingeagereagleearlyeartheateneatereightelecteliteemptyenemyenjoyenterentryequalequiperaseerroressayethiceventeveryexactexistextrafaintfairyfaithfalsefancyfarcefatalfaultfavorfencefetchfeverfewerfiberfibrefieldfifthfiftyfightfinalfinerfirstfiverfizzyflameflashfleetfleshfloatfloodfloorflourflownfluidflushflutefocusforceforthfortyforumfoundframefrankfraudfreakfreedfreshfrontfrownfrozefruitfudgefullyfunnyfurryfussyfuzzygenreghostgiantgivenglassgleangloryglovegnomegoinggoodygracegradegraingrandgrantgraphgraspgrassgravegreatgreedgreengriefgrindgroangrossgroupgrownguardguessguestguideguilthabithairyhalvehandyhappyhardyharshhastyhavocheardheartheavyhellohencehobbyhoneyhonorhordehorsehotelhousehumanhumorhurryidealidiomimageimplyinaneincurindexinferinnerinputinterirateironyissuejellyjointjollyjudgejuiceknifeknockknownlabellaborlagerlargelaserlaterlaughlayerleachlearnleastleavelegallemonlevellibellightlimitliterlitreliverlobbylocallodgelogiclooselorrylousyloverlowerloyalluckylunchlyinglyricmagicmaizemajormakermaniamarchmarrymatchmaybemayormeantmediamenusmercymergemeritmerrymessymetalmetermetremetromightmimicminorminusmodelmoneymonthmoralmotormottomouldmountmousemouthmoviemummymusicnaivenastynervenevernewernewlynicernightnoblenoisenoisynorthnovelnurseobeysoccuroceanoddlyofferoftenolderonionoperaopticorbitorderorganotheroughtouterowingownerozonepaintpanelpanicpaperparsepartypastepatchpausepeacepedalpencepennypettyphasephonephotopianopiecepilotpinchpitchpizzaplaceplainplaneplantplateplayspointpolarpoundpowerprayspresspriceprideprimeprintpriorpriseprizeproneproofproseproudprovepulsepunchpupilpurgequeenqueryquestqueuequickquietquitequotaquoterabidradarradioraiserangerapidrarerratiorazorreachreactreadyrealmreferreignrelaxrelayrenewreplyresetreuserhymerightrigidrisenriskyrivalriverrobotromanroughroundrouteroyalrulerrumorruralrustysadlysafersaintsaucescalescarescarfscenescopescorescrapscrewsenseservesevenshadeshakeshakyshallshameshapesharesharpsheepsheersheetshelfshellshiftshineshinyshirtshockshoneshookshootshortshoutshoveshownsightsigmasillysincesixthsixtyskillskirtskullslangslashsleepsleptsliceslideslopesmallsmartsmashsmellsmilesmithsmokesnacksnailsneaksniffsobersolarsolidsolvesorrysoundsouthspacesparespeakspeedspellspeltspendspentspikespillspitesplitspoilspokespoofspoolsportspoutspraysquadstackstaffstagestairstakestalestallstampstandstarestarkstartstatestaysstealsteamsteelsteepsteerstickstiffstillstockstolestonestoodstorestormstorystrawstraystripstuckstudystuffstuntstylesugarsuingsuitesunnysuperswampswearsweatsweepsweetsweptswingswordsworesworntabletakentakertasteteachteethtempttensetenthtersethankthefttheirthemetherethesethickthiefthingthinkthirdthosethousthreethrewthrowthumbtigertighttimertitletoasttodaytokentoothtopictotaltouchtoughtowertracetracktradetrailtraintrashtreadtreattrendtrialtribetricktrooptrucktrulytrunktrusttruthtutortwicetwisttyinguncleunderundidunifyunionuniteunityunsetuntilupperupseturbanusageusingusualuttervaguevalidvaluevalvevenueversevicarvideovinylvirusvisitvitalvocalvoicevomitvotervouchvowelwastewatchwaterwearyweighweirdwhalewheelwherewhichwhilewhitewholewhoopwhosewiderwidthwiserwitchwittywokenwomanwomenworldworryworseworstworthwouldwoundwrathwreckwristwritewrongwroteyieldyoungyouth';
+window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabetsabhorabiesablerabmhoabodeabohmabutsabuzzabysmabyssacariacerbachedachesachooacidsacingaciniacmesacnedacredacresacridactedactinadageaddaxaddedadderaddleadeptadieuaditsadmanadmenadmixadobeadoreadornadownadustadzesaeciaaedesaegisaeonsaerieaffixafireafootaforeafoulafritagamaagapeagateagaveaggeraggieaggroagileagiosagistagitaagletagleyaglowagoneagoraaidedaideraidesailedaimedairedairtsaisleaitchakeesakenealackalaryalatealderaldolalephalgaealgalalgidalginalgoraliasalibialkydalkylallayalleyallotalloyallylaloesaloftalohaaloinaloofaltaraltosalulaalumsamahsamainamassambitambleambosambryamentamiceamideamigoamineaminoamissamityamnioamouramplyanconanearaneleanentangstanileanilsanimaanimeanionaniseankhsankleankusannalannasannexannulanoasanodeanoleanonsantedantesanticantisantreantsyanvilaortaapaceapeakaperyaphidaphisapianapingapishapneaaportappelapronapsesapsisapteraptlyaquasaraksarborarcedardebardorarealareasarecaargalargilargolargonargotariasarielarilsarmedarmetarmoraroidaromaarrasarrisarsedarsesarsisarsonartelartsyarumsascotascusasdicashedashenashesaskedaskeraskewaspenasperaspicassaiassayassesasterastiratiltatlasatmanatollatomsatomyatoneatonyatriaatripattaratticauditaugeraughtauguraulicaulosauntsauralauraraurasauricaurumautosauxinavailavastavensaversavertavianavionavowsawashawingawnedawokeaxialaxilsaxingaxlesaxonsayahsayinsazideazineazoicazoleazoteazothazurebaaedbabasbabelbabesbabulbaccybacksbaconbaelsbagelbaggybahtsbailsbairnbaitsbaizabaizebakedbakerbakesbalasbaldsbaldybaledbalerbalesbalksbalkyballsballybalmsbalmybalsabandsbandybanesbangsbanjobanksbannsbarbsbardebardsbaredbarerbaresbarfsbargebaricbarksbarmsbarmybarnsbaronbarrebaryebasalbasedbaserbasesbasilbasinbasksbassobastebatedbatesbathebathsbatikbatonbattybaulkbawdsbawdybawlsbayedbayoubazarbeadsbeadybeaksbeamsbeamybeanobeansbearsbeatsbeausbeautbebopbecksbedelbedewbedimbeechbeefsbeefybeepsbeersbeerybeetsbefitbefogbegatbegetbegotbegumbeigebelaybelchbelgabeliebellebellsbellybeltsbemasbendsbendybennebennybentsberetbergsberksbermsberryberthberylbesetbesombesotbestsbetasbetelbethsbettabevelbevvybezelbhajibhangbialybicepbiddybidesbidetbieldbiersbiffsbifidbightbijoubikedbikerbikesbilbobilgebilksbillsbillybimahbimbobinalbindsbinesbingebingobiomebiotabipedbipodbirchbirdsbirlsbirrsbisesbisonbitchbiterbitesbittsbittyblabsblagsblahsblainblandblareblateblatsblazebleakblearbleatblebsbleedbleepblendblimpblingbliniblipsblitzbloatblobsblocsblogsblokeblondbloombloopblotsblowsblowybluedbluerbluesbluetblueybluffbluntblursblurtblushboarsboartboastboatsbobbybodedbodesbodgeboffobogeyboggybogiebogleboilsbolasbolesbollsbolosboltsbolusbombebombsboncebondsbonedbonerbonesbongobongsbonksbonnebonnybonzeboobsboobybooedbooksboomsboongboonsboorsboothbootsbootyboozeboozyborakboraxboredborerboresboricboronboskybosombosonbossybotchbotelbothyboughboulebourgbouseboutsbovidbowedbowelbowerbowlsbowseboxedboxerboxesboyarboylabozosbracebrachbractbradsbraesbragsbraidbrailbrantbrashbratsbravobrawlbrawnbraxybraysbrazebreambredebrentbrevebrewsbriarbribebridebrierbrigsbrillbrimsbrinebrinkbrinybriskbritsbrochbrockbroilbroncbroodbrookbroombrosebrothbrowsbruinbruitbrumebruntbrutebubalbubbabuckobucksbuddybudgebuenobuffobuffsbuggybuglebuhlsbulbsbulgebulgybulksbulkybullabullsbullybumphbumpsbumpybuncobungsbunksbunnybuntsbuoysburanburbsburetburghburgsburinburkaburkeburlsburlyburnsburpsburqaburroburrsburrybursabursebusbybusedbusesbushybusksbustsbustybutchbuteobuttebuttsbuttybututbutylbuxombwanabylawbyresbytesbywaycabalcabbycabercabincabobcacaocachecacticadetcadgecadrecaffscagedcagercagescageycairdcairncakedcakescalkscallacallscalmscalvecalyxcamelcameocampocampscampycanalcandycanedcanercanescannacannycanoecanoncansocanstcantocantscantycapedcapercapescaponcaposcaputcaratcarbscardscaredcarercarescaretcargocarkscarnycarobcarolcaromcarpicarpscarsecartecartscarvecasedcasescaskscastecastscattycaudacaulkcaulscavedcavercavescaviecavilcawedcecalcecumcedarcededcedercedescedisceibacelebcellacellocellscelomcensecentocentsceorlceredceresceriacericceroscertscesarcestachafechaffchampchantchaoschapechapschardcharecharrcharscharychasmchatschawscheepchefschelachemochertchevychewschewychiaochickchicochidechilichillchimbchimechimpchinachinechingchinkchinochinschipschirkchirmchirpchirrchitschivechivychockchocschokecholichompchookchopschorechowschubschufachuffchugschumpchumschurlchurnchurrchutechylechymeciaoscigarciliacimexcinchcirriciscocitedcitescivetcivicclackclampclamsclangclankclansclapsclaroclaryclaspclaveclaviclawsclayscleatcleekclefscleftclepeclerkclewsclimeclineclingclinkclipsclitscloakclodsclogsclombclompclonkclopsclotscloutcloveclowncloysclubscluckcluedcluesclumpclungclunkcoactcoalscoalycoaticoatscobiacoblecobracoccicockscockycocoacocoscodascodedcodercodescodexcodoncoedscogoncohoscoifscoigncoilscoinscoirscokedcokescolascoldscolescoleycoliccollycoltscolzacomascombecombocombscomercomescometcomfycompocompsconchcondoconedconescongaconicconksconnscontecontocooedcooeecookscoolscoombcoonscoopscootscopalcopaycopedcopercopescopracopsecoralcordscoredcorercorescorgicoriacorkscorkycormscornscornucornycorpscorsecosetcostacostecostscotescottacouchcoupecoupscouthcovencovescovetcoveycovincowedcowercowlscoxaecoxedcoxescoyercoylycoypucozencraalcrabscrackcragscrakecramscranecrankcrapecrapscrapycratecravecrawscrazecreakcredocreekcreelcreescremecrepecreptcresscrestcrewscribscrickcriedcriercriescrimpcrinecroakcrockcroftcronecronkcronycrookcrooncropscrorecroupcrowscrozecruckcruetcrumbcrumpcrusecrustcrwthcryptcubbycubebcubedcubercubescubitcuddycuffscuingcukesculchculetculexcullscullyculmsculpacultscumincuntscupelcupidcuppacurbscurchcurdscurdycuredcurercurescuretcuriacuriecuriocurlscurvycuseccushycuskscuspscutchcutercuteycutiecutincutiscuttycutupcycadcylixcymaecymarcymascymescystscytonczarsdacesdachadadasdaddydaevadaffydagosdahlsdairydaisydalesdallydamandamardamesdamnsdampsdandydangsdaniodareddarerdaresdaricdarkydarnsdartsdateddaterdatesdaubedaubsdauntdavitdawnsdazeddazesdealsdeansdearsdearydebagdebardebitdebtsdebusdebutdecafdecaldecksdecordecoydecrydedaldeedsdeemsdeepsdeferdefogdegasdeicedeifydeigndeismdeistdekkodelftdelisdellsdelvedemitdemobdemondemosdemurdenardenimdentsdepotderbydermaderrydesexdesksdetoxdeucedewandhobidholedhotidhowsdialsdiazodiceddicerdicesdiceydicksdicotdictadidstdietsdightdikeddikesdildodillsdillydimerdimesdimlydinardineddinesdingedingodingsdingydinkydintsdiodedippydipsodirerdirgedirksdiscsdishydisksditsydittydivandivasdiveddiverdivesdivotdivvydiwandixiedizendizzydobbydobladobradobrodocksdodgydodosdoersdoffsdogesdoggodoggydogiedoilydolcedoleddolesdollsdollydolordoltsdomeddomesdonasdoneedongadongsdonnadonordoomsdoorsdoozydopeddoperdopesdopeydorksdorkydormsdortydoseddosesdoteddoterdotesdottydoucedoughdoumadouradousedovesdowdydoweldowerdowiedownsdownydowrydowsedoyendozeddozerdozesdrabsdraffdragsdrakedramsdrapedrawldrawsdraysdreardregsdrieddrierdriesdrilydripsdroitdrolldronedrooldroopdropsdrossdrubsdrugsdruiddrumsdrunkdrupedrusedryaddryerdrylyduadsdualsducalducatduchyducksduckyductsdudeddudesduelsduetsduffsdukesduliadullsdullydulsedumbodumpsdumpyduncedunesdungsdunksdunnoduomodupedduperdupesdupleduppydurradurstdurumduskydustsdutchduvetdwarfdweebdwelldweltdyadsdyersdykesdyneseagreearedearlsearnseasedeaseleaseseavesebbedebonyedemaedgededgeredgesedictedifyeditseduceeducteerieeffedegadsegesteggedeggeregreteidereidoseikonejectekingelandelateelbowelderelegyelemielfinelideelopeeludeeluteelverelvesemailembayembedemberembowembusemceeemendemeryemirsemitsemmeremmetemojiemoteenactenateendedendowendueenemaennuienrolensueenvoienvoyeosinepactephahephodephorepicsepochepodeepoxyerectergoterneserodeeroseerrederucterugoerupteskeresterestopetherethosethyletnaseurosevadeevensevertevictevilseviteevokeewersexaltexamsexcelexeatexecsexertexileexineexitsexonsexpatexpelexposextolexudeexultexurbeyraseyrirfablefacedfacerfacesfacetfactsfaddyfadedfaderfadesfadgefaenafaffsfagotfailsfairsfakedfakerfakesfakirfallsfamedfangofangsfannyfanonfaqirfaradfarcifarcyfaredfarerfaresfarmsfartsfastsfatedfatesfatlyfatsofattyfatwafaughfaunafaunsfauvefavesfavusfawnsfaxedfaxesfayerfayrefazedfazesfearsfeastfeatsfecalfecesfecitfeedsfeelsfeezefeignfeintfelidfellafellsfellyfelonfeltsfemmefemurfendsfennyfeoffferalferiafermifernsfernyferryfestsfetalfetedfetidfetorfetusfeuarfeudsfeylyfiatsfichefichuficusfidgefiefsfiendfieryfiferfifesfilarfilchfiledfilerfilesfiletfillsfillyfilmsfilmyfilthfilumfinchfindsfinedfinesfinisfinksfinnyfiredfirerfiresfirmsfirryfirthfiscsfishyfistsfitchfitlyfivesfixedfixerfixesfjeldfjordflackflagsflailflairflakeflakyflankflansflapsflareflaskflatsflawsflawyflaysfleamfleasfleckfleerfleesflewsflickfliedflierfliesflingflintflipsflirtfliteflitsflockflocsfloesflogsflongflopsflorafloryflossfloutflowsflubsfluesfluffflukeflukyflumeflumpflungflunkfluorflutyflybyflyerflytefoalsfoamsfoamyfocalfoehnfogeyfoggyfoilsfoistfoldsfoliafolicfoliefoliofolksfollyfontsfoodsfoolsfootsfootyforayforbyfordofordsforesforgeforgoforksformeformsfortefortsfossafossefoulsfountfourbfoursfoveafowlsfoxedfoxesfoyerfrackfrailfrancfrapsfratsfraysfreerfreesfremdfrenafretsfriarfriedfriesfrigsfrillfrisefriskfrithfritzfrizefrizzfrockfrogsfrondfronsfrorefroshfrostfrothfrumpfryerfubsyfucksfucusfuelsfugalfuggyfuguefullsfumedfumesfundsfungifungofunksfunkyfuranfurlsfurorfurzefurzyfusedfuseefusesfusilfustyfutongabbygablegadidgaffegaffsgailygainsgaitsgalahgalasgaleagalesgallsgalopgambagamedgamergamesgamicgamingammagammygampsgamutganefgangsganjaganofgapedgapesgappygarbsgarthgasesgaspsgassygatedgatergatesgatorgaudsgaudygaugegauntgaursgaussgauzegauzygavelgawksgawkygawpsgayergazedgazergazesgeansgearsgeckogeeksgeekygeesegeestgeldsgelidgemmagemmygemotgenesgenetgenicgeniegeniigenipgenoagenrogentsgenusgeodegeoidgerahgermsgermygessogetupghatsghazigheesghoulghyllgibedgibergibesgiddygiftsgigotgiguegildsgillsgiltsgimelgimmegimpsgimpyginnygipongirdsgirlsgirlygirosgirthgirtsgitesgivergivesgizmogladegladsglairglandglansglareglaryglazegleamglebegledegleetglensgliasglideglintglitzgloamgloatglobeglobsglomsgloomglossglowsglozegluedgluesglueyglumegluonglutsglyphgnarlgnashgnatsgnawsgoadsgoalsgoatsgodlygoersgofergoldsgolemgolfsgollygonadgonergongsgonifgonnagonzogoodsgooeygoofsgoofygooksgoonsgoosegoosygopakgoralgoredgoresgorgegorsegothsgottagougegourdgoutygowangownsgoyimgrabsgradsgraftgrailgramsgransgrapegrategravygraysgrazegrebegreetgreysgridegridsgriftgrillgrimegrimygrinsgripegripsgristgrithgritsgroatgroingroomgropegroszgrotsgroutgrovegrowlgrowsgrubsgruelgruffgrumegrumpgruntguacoguanoguansguarsguavagucksguildguileguisegulaggulasgulchgulesgulfsgullsgullygulpsgumbogummagummygungegungygunkygunnyguppygurgegurusgushygussygustogustsgustygutsyguttaguttyguyedguyotgybedgybesgypsygyralgyresgyrongyrosgyrusgyvedgyveshacekhackshadeshadsthafizhaftshaikuhailshairshajeshajjihakeshakimhalalhaledhalerhaleshallshalmshalonhaloshaltshamalhameshammyhamzahancehandshangshankshankyhaolehaplyhardsharedharemharesharksharmsharpsharpyharryhartshaspshastehatchhatedhaterhateshaughhaulmhaulshaunthavenhaverhaveshawedhawkshawsehayedhazanhazedhazelhazerhazesheadsheadyhealsheapshearsheathheatsheavehederhedgeheedsheelsheftsheftyheirsheisthelixhellshelmshelothelpshelvehemalhemicheminhengehennahenryherbsherbyherdsheresheronhertzhethshewedhewerhexadhexedhexerhexeshexylhickshidedhiderhideshighshighthijabhikedhikerhikeshillshillyhiltshilumhindshingehinnyhintshippohippyhiredhirerhireshitchhivedhiveshoardhoarshoaryhoboshockshocushoershoganhoickhoisthokedhokeshokeyhokkuhokumholdsholedholesholeyhollyhomedhomerhomeshomeyhomoshonedhonerhoneshonkshonkyhoochhoodshooeyhoofshookshookyhoopshootshopedhopeshorahhoralhorashormehornshornyhorsthosedhoseshostahostshotlyhoughhoundhourihourshovelhoverhowdyhowlshubbyhuffshuffyhugerhulashulkshulkyhullshumichumidhumphhumpshumpyhumushunchhunkshunkyhuntshurdshurlshursthurtshuskshuskyhussyhutchhydrahydrohyenahyinghymenhymnshyoidhypedhyperhypeshyphahyposhyraxhysoniambiiambsichoriciericilyicingiconsictusideasidiotidledidleridlesidolsidylliglooihramileacilealileumileusiliaciliumimagoimamsimbueimideimineimmiximpelinaptinboxincusindieineptinertinfixinfraingleingotinioninkedinkleinlayinletinnitinsetintisinureinurniodicioniciotasiradeirkedironsislesisletisseiistleitchyitemsiviediviesivoryixtleizardjabotjacaljacksjadedjadesjaggyjailsjakesjalapjambsjammyjapanjapedjaperjapesjatosjauntjawedjazzyjeansjebeljeepsjeersjellsjemmyjennyjeridjerksjerkyjerryjestsjettyjeweljibedjibesjiffsjiffyjihadjiltsjimmyjingojinksjinnijivedjiverjivesjiveyjockojocksjoeysjohnsjoinsjoistjokedjokerjokesjokeyjoltsjoltyjorumjoulejoustjowlsjowlyjoyedjugaljugumjuicyjujusjulepjumbojumpsjumpyjuncojunksjuntajuponjuraljuratjureljurorjuttykafirkaiakkailskakiskalifkaliskalpakanjikanzukaonskaphskapokkappakaputkaratkarmakarstkartskashakaurikavaskayakkayoskazookebabkedgekeelskeenskeepskellykenafkendokentekepiskerbskerneketchkevelkeyedkhakikhanskhedakhoumkiangkibeskickskickykiddokikeskillskilnskiloskiltskinaskindakindskineskingskininkinkskinkykinoskioskkitedkiteskittykiwisklongkloofklutzknackknapsknavekneadkneedkneelkneesknellkneltknishknitsknobsknollknotsknoutknowsknurlkoalakoboskohlskoinekolaskookskookykopjekormakoseskotoskraalkraftkraitkrautkrillkronekroonkudoskuduskudzukukrikulakkuruskvasskyatskyleskylixlabialacedlacerlaceslacksladedladenladesladlelaganlairdlairslaitylakerlakeslakhslamaslambslamedlamerlameslamialampslanailancelandslaneslankylapellapinlapselarchlardslardylareslargolarkslarumlarvalassolastslatchlatedlatexlathelathilathslathylatkelattelaudslavaslavedlaverlaveslawnslaxerlaxlylayuplazarlazedlazesleadsleafsleafyleaksleakyleansleapsleaptleaseleashledgeleechleeksleersleeryleftsleftylegesleggylegitlemanlemmalemmelemurlendslenislentoleoneleperleptaletheletupleveeleverlevinlewislexislianaliardliarsliberlibralicitlickslidosliegeliensliferliftsliganligerlikedlikenlikerlikeslilaclilosliltslimbolimbslimedlimenlimeslimeylimnslimoslimpslindylinedlinenlinerlineslingolingslininlinkslintylionslipidlippylislelispslistslitaslithelivedlivenliveslividlivrellamallanoloachloadsloafsloamsloamyloansloathlobarlobedlobeslockslocoslocumlocuslodenlodesloessloftsloftyloganlogesloggylogialoginlogonlogosloinslollslollylonerlongelongsloobylooksloomsloonsloonyloopsloopylootslopedloperlopesloppyloranlordslorisloselloserloseslotasloticlottolotusloughlouisloupelourslourylouseloutslovedlovesloveylowedlowlyluauslubedlubeslubralucidluckslucreludicluffaluffslugedlugeslullsluluslumenlumpslumpylunarlungelungilungslupinlupuslurchluredlureslurexlurgyluridlurkslushylustslustylutesluxeslweislymphlynchlyreslyseslysinlysislyssalyticlyttamacawmacedmacesmachomaclemacromadammadlymafiamagesmagmamagusmaidsmailsmaimsmainsmakesmakosmalarmalesmallsmaltsmaltymamasmambamambomameymammamammymanasmanatmanedmanesmangamangemangomangymanicmankymanlymannamanormansemantamaplemarasmarcsmaresmargemariamarkamarksmarlsmarlymarshmartsmasermasksmasonmassymastsmatedmatermatesmateymatinmattemattsmatzomaulsmaundmauvemavenmavismaxedmaxesmaximmaxismaystmazermazesmealsmealymeansmeanymeatsmeatymeccamedalmedicmeetsmeinymeldsmelicmelonmeltsmemesmemosmendsmeowsmeresmerlemesasmesicmesnemesonmetedmetesmethsmeticmetismewedmewlsmezzomiaowmicksmicromiddymidgemidismidstmiensmiffsmiffymikedmikesmikvamilchmilermilesmilfsmiliamilksmilkymillsmilosmiltsmimedmimermimesmincemindsminedminerminesmingyminimminisminkeminksmintsmintymiredmiresmirinmirthmirzamisdomisermissymistsmistymitermitesmitismitremittsmixedmixermixesmnememoansmoatsmochamocksmodalmodemmodesmoggymogulmohurmoilsmoiremoistmokesmolalmolarmolasmoldsmoldymolesmollsmollymoltsmommymonadmonasmondemongomonksmontemoochmoodsmoodymooedmoonsmoonymoorsmoosemootsmopedmopermopesmopeymoraymorelmoresmornsmoronmorsemoseymossymotelmotesmotetmothsmothymotifmottemouesmoultmoundmournmousymovedmovermovesmowedmowermoxiemucinmucksmuckymucormucromucusmuddymudramuffsmuftimuggymujikmulchmulctmulesmuleymullamullsmultimumpsmunchmuonsmuralmurexmurksmurkymurremusedmusermusesmushymuskymussymusthmustsmustymutedmutermutesmuttsmuzakmuzzymyallmynahmynasmyrrhmythsnaansnabobnachonacrenadirnaevinaiadnaifsnailsnairanakednakernakfanamednamernamesnancenancynannynapesnappenappynarcsnardsnaresnarisnarkynasalnatalnatchnatesnattynavalnavarnavelnavesnavvynawabneapsnearsneathnecksneedsneedynegronegusneighnellyneperneralnerdsnerdynervynestsnettyneumenevusnewelnewsynewtsnexusngweenichenicksnidusnieceniffyniftynigganihilnimbinimbyninesninjaninnyninonninthnipasnippyniseinisusniternitidnitrenitronittynivalnixednixesnobbynoblynocksnodalnoddynodesnodusnoelsnohownomadnomennoncenonesnonetnooksnookynoonsnoosenorianormsnosednosesnotchnotednotesnotumnounsnovaenovasnowaynubbynudernudesnudgenukednukesnullsnumbsnumennuttynyalanylonnymphoakenoakumoaredoasesoasisoastsoatenoathsobeahobeliobeseobitsobjetoboesoboliocherochreockerocreaoctadoctaloctanoctetoculiodderodeonodeumodiumodorsodouroecusoffaloffedogeedoghamogiveogledogleroglesogresohmicoiledoileroinksokapiokaysokrasoldenoldieoleicoleinoleumoliveollasologyomasaomberombreomegaomensomitsonsetonticoohedoomphootidoozedoozesopahsopalsopensopineopingopiumoptedoralsorangorateorcasoreadorielorlopornisorrisosierosmicottarotterounceoupheouseloustsoutdooutedoutgoouttaouzelouzosovalsovaryovateovensoversovertovineovoidovoloovuleowletownedoxbowoxideoximepacedpacerpacespaceypachapackspactspaddypadrepaeanpaeonpaganpagedpagerpagespailspainspairspaisapaledpalerpalespallspallypalmspalmypalsypampapandapanedpanespangapangspannepansypantopantspapalpapaspappyparasparchparedparerparespareuparkaparksparkyparolparrsparrypartsparvepashapashmpastapastspastypatenpatespathspatinpatiopatlypatsypattypavanpavedpavespavidpavispawedpawlspawnspaxespayedpayeepayerpeachpeagspeakspeakypealspeanspearlpearspeartpeatypebaspecanpeckspeekspeelspeenspeepspeerspeevepekanpekespekoepeltspenalpendspenispennapennepennipeonspeonypeppyperchperduperilperisperksperkypermsperrypersepervspeskypesospestopestspestypetalpeterpetitpeweepewitphagepheonphialphishphloxphonsphonyphotsphylaphylepickspickypicotpiculpierspietypiggypiingpikaspikedpikerpikespilafpilchpiledpileipilespillspimpspinedpinespineypingspinkopinkspinnapinnypintapintopintspinuppionspiouspipedpiperpipespipitpiquepirogpistepitaspithspithypitonpittapivotpixelpixieplageplaidplaitplankplansplashplasmplatsplatyplayaplazapleadpleaspleatplebeplebsplenaplicapliedplierpliesploceplodsplonkplopsplotsplowsployspluckplugsplumbplumeplumpplumsplumyplunkplushpoachpockspockypoddypoemspoesypoetspogeypoggepoilupoisepokedpokerpokespokeypoledpolerpolespoliopolispolkapollspolyppolyspomespommyponceponcypondsponespongspoochpoodspooedpoofspoohspookapoolspoonspoopspopespoppapoppypopupporchporedporerporesporgyporkypornoportsposedposerposespositpossepostspottopottypouchpoufspoultpourspoutspoutypoxespramspranaprangprankprasepratepratsprawnpreenprepspresapreseprexypreysprickpriedprierpriesprigsprimoprimpprinkprionprismprivyprobeprodsproemprofsprolepromopromsprongpropsprosyprowlprowsproxyprudeprunepsalmpshawpsoaspsychpubespubicpubispuckapuckspudgypuffspuffypukedpukespukkapulaspuledpulerpulespullspulpspulpypumaspumpspungspungypunkspuntspupaepupalpuppypureepurerpurlspurrspursepursypushypussyputtoputtsputtypwnedpygmypylonpyoidpyrespyxespyxiepzazzqiblaqophsquackquadsquaffquailquakequakyqualequalmquantquarkquartquashquasiquassquaysqueanqueerquellquernquidsquiffquillquiltquinsquintquipsquipuquirequirkquirtquitsquoinquoitquothrabbiracedracerracesracksraconradiiradixradonraftsragasragedragesraggaragisraidsrailsrainsrainyrajahrajesrakedrakerrakesralesrallyramenramierampsranceranchrandyraneerangyranksrantsrapedraperrapesraredraresraspsraspyratalratanratedratelraterratesratherattyravedravelravenraverravesravinrawerrayonrazedrazeerazesreadsrealsreamsreapsrearmrearsreatareaverebecrebelrebidrebusrebutrecapreccereconrectirectorecurrecutredanredidredlyreduxredyereedsreedyreefsreeksreekyreelsreestreeverefitrefixrefryregalregexrehabreifyreinsreiverejigrelicremapremexremitremixrenalrendsrenesreninrentsreorgrepayrepelreppsreproreranrerunresatresewresinresitresowrestsretchretieretroretryrevelrevetrevuerewedrheasrheumrhinorhombrhumbrialsriantriataricedricerricesricksriderridesridgeridgyrielsriferriffsrifleriftsrigorriledrilesrillerillsrimedrimesrindsringsrinksrinseriotsripenriperriserrisesrishirisksritesritzyrivedrivenrivesrivetriyalroachroadsroamsroansroarsroastrobedrobesrobinroblerocksrockyrodeorogerrogueroilsroilyrolesrollsromeorompsronderondoroodsroofsrooksrookyroomsroomyrooseroostrootsropedroperropesroquerosesrosinrotasrotlsrotorrougerouseroustroutsrovedroverrovesrowanrowdyrowedrowelrowerrubelrubesrublerucherucksruddsruddyruderruffsrugbyruingruinsruledrulesrumalrumbarumenrummyrumpsrunesrungsrunicrunnyruntsruntyrupeerusesrushyrusksrustsruthsruttysabersabinsablesabotsabrasabresackssacrasadessadhusaetasafessagassagersagessaggysahibsaigasailssaithsakersakessakissaladsalepsalessallysalmisalolsalonsalpasalsasaltssaltysalvesalvosambasambosamessameysandssandysanersangssapidsaporsappysaransardssargesarissarkysarossasinsassysataysatedsatemsatessatinsatyrsaucysaunasaurysavedsaversavessavorsavoysavvysawedsawersaxessayerscabsscadsscaldscalpscalyscampscamsscansscantscapescarpscarsscaryscatsscendscentschmoschwascionscoffscoldsconescoopscootscornscourscoutscowlscowsscragscramscreescrimscripscrodscrubscrumscubascudoscudsscuffscullscumsscupsscurfscutascutescutssealsseamsseamysearsseatssebumseccosectssedansedgesedgysedumseedsseedyseeksseelsseemsseepsseerssegnosegueseineseiseseismseizeselahsellssemensemissendssennasenorsentesepalsepiasepoyseptaseptsseraisererserfssergeserifserinserowserumservosetaesettssetupseversewansewedsewersexedsexessextsshackshadsshadyshaftshagsshahsshakoshaleshaltshamsshankshardsharkshaveshawlshawmshayssheafshearshedssheenshendshewnshewsshiedshiershiesshillshimsshinsshipsshireshirkshirrshitsshivashiveshivsshoalshoatshoershoesshoolshoosshopsshoreshoteshotsshowsshowyshredshrewshrubshrugshuckshunsshuntshushshutsshyershylysibylsickosickssidedsidessidlesiegesievesiftssighssigilsignssikassildssilkssilkysillssilossiltssiltysilvasimarsimbasinessinewsingesingssinkssinussiredsirensiressisalsisessissysitarsitedsitessitussixessizarsizedsizersizesskaldskateskeanskeetskegsskeinskelpskepsskewsskidsskiedskierskiesskiffskimpskimsskinkskinsskintskipsskirlskirrskiteskitsskiveskoalskoshskuasskulkskunkslabsslackslagsslainslakeslamsslantslapsslateslatsslatyslaveslayssledssleeksleetslewsslickslierslimeslimsslimyslingslinkslipsslitsslobssloesslogssloopslopssloshslothslotsslowsslubssluedsluessluffslugsslumpslumsslungslunkslurpslursslushslutsslyerslylyslypesmacksmaltsmarmsmazesmearsmeltsmewssmirksmitesmocksmogssmokosmokysmoltsmotesmutssnafusnagssnakesnakysnapssnaresnarlsnathsnecksneersnicksnidesnipesnipssnitssnobssnogssnoodsnooksnoopsnootsnoresnortsnotssnoutsnowssnowysnubssnuffsnugssoakssoapssoapysoarssoavesockssoclesodassofarsofassoftasoftysoggysoilssolansoldosoledsolessolonsolossolussomassonarsondesonessongssonicsonlysonnysoothsootysoporsoppysorbssorersoressorgosortasortssorussoughsoukssoulssoupssoupysourssousesowedsowerspadespahispakespallspamsspangspankspanssparksparsspasmspatespatsspawnspaysspearspeckspecsspeosspermspewsspicaspicespicsspicyspiedspielspierspiesspiffspikyspilespiltspinespinsspinyspirespiryspitsspitzspivssplatsplayspookspoonspoorsporespotsspragspratspreesprigspritsprogspruespudsspuedspuesspumespumyspunkspurnspursspurtsputasquabsquatsquawsquibsquidsrutistabsstagsstagystaidstainstalkstanestangstankstaphstarsstashstatsstavesteadsteaksteedsteinstelastelestemsstenostentstepssteresternstetsstewsstichstiesstilestiltstingstinkstintstipestirkstirsstoatstoicstokestomastompstonystookstoolstoopstopestopsstorkstossstoupstourstoutstovestowsstrapstreestrepstrewstriastropstrowstroystrumstrutstubsstudsstullstumpstungstunkstunsstupastupestylisuavesuckssucresudorsudsysuedesuetysuintsuitssulcisulfasulkssulkysullysumacsummasumpssunupsuprasurahsuralsurassurdssurersurfssurgesurgysurlysurrasushisutraswabsswageswagsswainswaleswamiswankswansswapsswardswarmswartswashswathswatsswaysswedeswellswiftswigsswillswimsswineswinkswipeswirlswishswizzswoonswoopswotsswungsyceesylphsyncssynodsynthsyruptabbytabestablatabootabortacettachetacittackstackytacostaelstaffytafiataigatailstainttakastakestakintalastalertalestalkstalkytallytalontaluktalustamedtamertamestamistammytampstangotangstangytankatankstansytantotapastapedtapertapestapirtapistardytaredtarestargetarnstarostarottarpstarrytarsitartstartytasertaskstassetastytatertattytaunttaupetawnytaxedtaxertaxestaxistaxontayratazzateakstealsteamstearstearyteaseteatstechstechyteddyteemsteensteenytelextelictellstellytempotempstenchtendstenettengeteniatennotenontenortentstepeetepidtercetermsternsterraterryteslatestateststestytethstetratextsthanethawsthebethecatheesthegnthetathewsthewythighthillthinethinsthioltholethongthornthorpthrobthroethrumthudsthugsthujathumpthuyathymetiaratibiaticaltickstidaltidedtidestierstiffstigontildetiledtilertilestillstilthtiltstimedtimestimidtineatinedtinestingetingstinnytintstipsytiredtirestitantitchtitertithetitistitretittytizzytoadstoadytoddytoeastoffstogastoiletoilstokaytokedtokestolantolartollstollytolustolyltombstomestonaltonedtonertonestongatongstonictonnetonustoolstootstopaztopedtopeetopertopestoquetorchtoriitorrstorsetorsktorsotortetortstorustotedtotemtotertotestourstoutstowedtoweltownstoxictoxintoyedtracttraittramptramstrapstrasstravetrawltraystreedtreentreestrekstresstrewstreystriadtricetriedtriertriestriketrilltrimstrinetriostripetripstritetroattrolltromptronatropetrothtrotstrouttrovetrowstroystrucetruedtruertruestrugstrulltrumptrusstrymatrysttsarstubaltubastubbytubedtubertubestuckstuftstuftytuliptulletumidtummytumortunastunedtunertunestunictunnytupletuqueturboturdsturfsturfyturnsturpstushytuskstuttituttytutustuxestwaintwangtwatstweaktweedtweentweettwerktwerptwigstwilltwinetwinktwinstwirltwitstwixttykestypaltypedtypestypostyrestyrosudderuhlanukaseulcerulemaulnaeulnarultraumbelumberumbraumiakumpedunaptunarmunbarunbiduncapuncutundueunfedunfitunfixunitsunjamunlayunlitunmanunmetunpegunpenunpinunrigunsayunsexuntieunwedunwonunzipupenduppeduredourgedurgerurgesurialurineusersusherusurpusuryuteriutileuveasuvulavagalvagusvalesvaletvalorvalsevampsvampyvandavanesvapedvapesvapidvaporvarasvariavarixvarusvarvevasesvastsvastyvaticvaultvauntvedicveepsveersveeryveganvegesveilsveinsveinyvelarveldsvelumvenaevenalvendsvengeveninvenomventsverbsvereyvergeversaversoverstvertuvervevestavestsvetchvetervexedvexesvialsviandvibesvicedvicesviewsviewyvigilvigorvilervillavillivimenvinesvinicviolaviolsviperviralvireovirgavirtuvisasvisedvisesvisorvistavitaevittavivasvividvixenvodkavoguevoidsvoilevolarvolesvoltsvolvavomervotedvotesvougevowedvowervulvavyingwackewackowackswackywadedwaderwadeswadgewadiswaferwaftswagedwagerwageswagonwahoowaifswailswainswaistwaitswaivewakedwakenwakeswaledwaleswalkswallswallywaltzwandswanedwaneswankswanlywannawantswardswareswarmswarnswarpswartswartywashywaspswattswavedwaverwaveswaxedwaxenwaxeswazoowealdwealsweanswearsweavewebbyweberwedgeweedsweedyweeksweensweenyweepsweepyweestweftsweirswekasweldswellswellywelshweltswenchwendswershwetlywhackwhamswhapswharfwhatswhealwheatwheenwhelkwhelmwhelpwhenswhetswhiffwhimswhinewhinswhinywhipswhiptwhirlwhirrwhirswhishwhiskwhistwhitswhitywhizzwhompwhopswhorewhorlwhosowhupswickswidenwideswidowwieldwightwikiswildswiledwileswillswillywiltswimpswimpywincewinchwindswindywinedwineswingswinkswinoswinzewipedwiperwipeswiredwirerwireswirrawisedwisenwiseswispswispywithewithywivedwiveswizenwoaldwodgewoldswolfswombswonkswonkywoodswoodywooedwooerwoofswoolswoopswoozywordswordyworkswormswormywovenwowedwrackwrapswreakwrenswrestwringwritswrothwrungwryerwrylywurstwussyxebecxeniaxenonxericxeroxxylemxylolyachtyahooyakkayamenyanksyapokyaponyappyyardsyarnsyawedyawlsyawnsyawpsyeahsyeansyearnyearsyeastyeggsyellsyelpsyentayesesyetisyikesyobboyodelyodleyogicyogisyokedyokelyokesyolksyonksyoursyowlsyuccayuckyyukkyyulanyummyyurtszairezamiazappyzarfszayinzazenzebeczebrazebuszeroszestszestyzetaszibetzilchzincszineszingszingyzippyzitiszlotyzonalzonedzoneszooidzoomszoril';
+</script>
+<script>
+/* Words race – everyone guesses the same secret 5-letter word in 6 tries. Fewer tries and faster = more points.
+ * The overlay only shows colours, never letters, so nobody can copy from the stream. */
+(function () {
+  'use strict';
+  const G = window.Games;
+  const ANS = [], ALLOWED = new Set();
+  function load() {
+    if (ANS.length) return;
+    const a = window.WORDS_ANSWERS || '', b = window.WORDS_ALLOWED || '';
+    for (let i = 0; i + 5 <= a.length; i += 5) { const w = a.slice(i, i + 5); ANS.push(w); ALLOWED.add(w); }
+    for (let i = 0; i + 5 <= b.length; i += 5) ALLOWED.add(b.slice(i, i + 5));
+  }
+  const secretFor = seed => { load(); return ANS[(seed >>> 0) % ANS.length] || 'crane'; };
+  const COL = { g: '#3fbf55', y: '#d6b52a', x: '#3a3f58' };
+
+  function grade(guess, secret) {
+    const res = Array(5).fill('x'), left = {};
+    for (let i = 0; i < 5; i++) { if (guess[i] === secret[i]) res[i] = 'g'; else left[secret[i]] = (left[secret[i]] || 0) + 1; }
+    for (let i = 0; i < 5; i++) if (res[i] !== 'g' && left[guess[i]] > 0) { res[i] = 'y'; left[guess[i]]--; }
+    return res;
+  }
+
+  G.register({
+    id: 'words', name: 'Words', defaultTime: 180, cols: 5, rows: 6,
+    typing: true,
+    tagline: 'Same secret 5-letter word for everyone. Guess it in as few tries as you can, as fast as you can.',
+    howtoKeys: [
+      ['Type + <kbd>Enter</kbd>', 'Guess a word (or use the on-screen keyboard)'],
+      ['<kbd>Backspace</kbd>', 'Delete a letter'],
+      ['', '🟩 right letter, right spot · 🟨 in the word, wrong spot'],
+    ],
+    howtoTouch: 'Use the on-screen keyboard. 🟩 right letter, right spot · 🟨 in the word, wrong spot.',
+    doneLabel: 'SOLVED', outLabel: 'OUT OF TRIES',
+    reveal: seed => secretFor(seed).toUpperCase(),
+
+    create(seed) {
+      load();
+      const secret = secretFor(seed);
+      const rows = [], marks = [];
+      let cur = '', elapsed = 0, solved = false, failed = false, msg = '', msgAt = 0, shakeAt = -1e9, bonus = 0, base = 0, partial = 0;
+      const keyState = {};
+      let padVer = 1, padSeen = 0;
+
+      function say(t) { msg = t; msgAt = performance.now(); }
+      function submit() {
+        if (solved || failed) return;
+        if (cur.length < 5) { say('Not enough letters'); shakeAt = performance.now(); return; }
+        if (!ALLOWED.has(cur)) { say('Not in word list'); shakeAt = performance.now(); return; }
+        const m = grade(cur, secret);
+        rows.push(cur); marks.push(m);
+        const rank = { x: 1, y: 2, g: 3 };
+        for (let i = 0; i < 5; i++) { const k = cur[i], v = m[i]; if (!keyState[k] || rank[v] > rank[keyState[k]]) keyState[k] = v; }
+        padVer++;
+        const greens = m.filter(c => c === 'g').length, yellows = m.filter(c => c === 'y').length;
+        partial = Math.max(partial, greens * 20 + yellows * 5);
+        if (cur === secret) {
+          solved = true;
+          base = (7 - rows.length) * 1000;
+          bonus = Math.max(0, 1000 - Math.floor(elapsed / 1000) * 5);
+          inst.events.push({ text: ['GENIUS!', 'MAGNIFICENT!', 'IMPRESSIVE!', 'SPLENDID!', 'GREAT!', 'PHEW!'][rows.length - 1], big: true, pts: base + bonus });
+        } else if (rows.length >= 6) {
+          failed = true; say('The word was ' + secret.toUpperCase());
+        }
+        cur = '';
+      }
+      function type(k) {
+        if (solved || failed) return;
+        if (k === 'enter') submit();
+        else if (k === 'back') cur = cur.slice(0, -1);
+        else if (/^[a-z]$/.test(k) && cur.length < 5) cur += k;
+      }
+
+      const inst = {
+        events: [],
+        get score() { return solved ? base + bonus : partial; },
+        get state() { return solved ? 'done' : failed ? 'out' : 'play'; },
+        get tb() { return solved ? -elapsed : partial; },
+        update(dt) { if (!solved && !failed) elapsed += dt; },
+        key(code, down, e) {
+          if (!down) return /^Key[A-Z]$/.test(code) || code === 'Enter' || code === 'Backspace';
+          if (e && (e.ctrlKey || e.metaKey || e.altKey)) return false;
+          if (code === 'Enter' || code === 'NumpadEnter') { type('enter'); return true; }
+          if (code === 'Backspace') { type('back'); return true; }
+          const m = /^Key([A-Z])$/.exec(code);
+          if (m) { type(m[1].toLowerCase()); return true; }
+          return false;
+        },
+        btn(a, down) { if (down && a.startsWith('k:')) type(a.slice(2)); },
+        releaseAll() { },
+        finish() { if (!solved && !failed) { failed = true; say('The word was ' + secret.toUpperCase()); } },
+        snapshot() {
+          let s = '';
+          for (let r = 0; r < 6; r++) for (let c = 0; c < 5; c++) {
+            if (r < marks.length) s += marks[r][c];
+            else if (r === marks.length && c < cur.length) s += 't';
+            else s += '.';
+          }
+          return s;
+        },
+        info() { return solved ? 'in ' + rows.length + ' · ' + G.fmt(elapsed) : rows.length + '/6'; },
+        endText() { return (solved ? 'Solved in ' + rows.length + ' tr' + (rows.length === 1 ? 'y' : 'ies') + ' · ' + G.fmt(elapsed) : 'Not solved') + ' · The word was ' + secret.toUpperCase(); },
+        syncPad(el) {
+          if (padSeen === padVer) return;
+          padSeen = padVer;
+          el.querySelectorAll('button[data-a^="k:"]').forEach(b => {
+            const k = b.dataset.a.slice(2), s = keyState[k];
+            b.dataset.st = s || '';
+          });
+        },
+        render(ctx, area, view) {
+          const now = performance.now();
+          // board of 5×6 tiles + one row of stats on top
+          const unit = Math.floor(Math.min(area.w / 5.6, (area.h - 10) / 8.6, view.touch ? 1e9 : 84));
+          const gap = Math.max(3, Math.round(unit * 0.08)), s = unit - gap;
+          const bw = unit * 5 - gap, bh = unit * 6 - gap;
+          const bx = Math.round(area.x + (area.w - bw) / 2);
+          const by = Math.round(area.y + (area.h - bh - unit * 2.2) / 2 + unit * 1.6);
+          const stats = G.baseStats(inst, view, [['TRIES', rows.length + '/6', '#fff']]);
+          G.drawStats(ctx, stats, bx - unit * 0.6, by - unit * 1.55, bw + unit * 1.2, unit * 0.7, true);
+          const shake = now - shakeAt < 400 ? Math.sin((now - shakeAt) / 25) * unit * 0.08 * (1 - (now - shakeAt) / 400) : 0;
+          for (let r = 0; r < 6; r++) for (let c = 0; c < 5; c++) {
+            const x = bx + c * unit + (r === rows.length ? shake : 0), y = by + r * unit;
+            let letter = '', fill = 'rgba(255,255,255,0.04)', stroke = 'rgba(255,255,255,0.16)';
+            if (r < rows.length) { letter = rows[r][c]; fill = COL[marks[r][c]]; stroke = fill; }
+            else if (r === rows.length && c < cur.length) { letter = cur[c]; stroke = 'rgba(255,255,255,0.5)'; }
+            ctx.fillStyle = fill; G.rr(ctx, x, y, s, s, unit * 0.08); ctx.fill();
+            ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke();
+            if (letter) {
+              ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+              ctx.font = G.font(s * 0.55); ctx.fillText(letter.toUpperCase(), x + s / 2, y + s / 2 + s * 0.03); ctx.textBaseline = 'alphabetic';
+            }
+          }
+          // message line
+          const showMsg = msg && (failed || now - msgAt < 1600);
+          if (showMsg) {
+            ctx.font = G.font(unit * 0.36); const tw = ctx.measureText(msg).width + unit * 0.6;
+            ctx.fillStyle = 'rgba(238,241,255,0.95)'; G.rr(ctx, bx + bw / 2 - tw / 2, by + bh * 0.42, tw, unit * 0.7, unit * 0.12); ctx.fill();
+            ctx.fillStyle = '#0b0e1d'; ctx.textAlign = 'center'; ctx.fillText(msg, bx + bw / 2, by + bh * 0.42 + unit * 0.47);
+          }
+          return { x: bx, y: by, w: bw, h: bh, cell: unit * 0.55 };
+        },
+      };
+      return inst;
+    },
+
+    drawMini(ctx, snap, x, y, cell, dim) {
+      const gap = Math.max(1, cell * 0.1), s = cell - gap;
+      for (let i = 0; i < 30; i++) {
+        const c = snap[i] || '.', X = x + (i % 5) * cell + gap / 2, Y = y + Math.floor(i / 5) * cell + gap / 2;
+        ctx.globalAlpha = dim;
+        if (COL[c]) { ctx.fillStyle = COL[c]; G.rr(ctx, X, Y, s, s, s * 0.1); ctx.fill(); }
+        else {
+          ctx.fillStyle = 'rgba(255,255,255,0.04)'; G.rr(ctx, X, Y, s, s, s * 0.1); ctx.fill();
+          ctx.strokeStyle = c === 't' ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.14)'; ctx.lineWidth = Math.max(1, cell * 0.05); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+    },
+  });
+})();
+</script>
+<script>
+/* Chat Arcade – networking.
  * Online: the OBS overlay is the "host" peer (PeerJS / WebRTC, free public broker + TURN),
  *         every player connects directly to it. No server of your own is needed.
  * Local test mode (?local on both pages): BroadcastChannel between tabs of one browser. */
 (function (root) {
   'use strict';
-  const PREFIX = 'chatplaystetris-v1-';
+  const PREFIX = 'chatarcade-v1-';
 
   function cleanRoom(r) { return String(r || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32); }
 
@@ -680,10 +1491,10 @@ html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-botto
 })(window);
 </script>
 <script>
-/* Chat Plays Tetris – player page */
+/* Player page – shell around the games: join, lobby, matches, results, solo play, input, layout. */
 (function () {
   'use strict';
-  const T = window.Tetris;
+  const G = window.Games;
   const qs = new URLSearchParams(location.search);
   const LOCAL = qs.has('local');
   const $ = id => document.getElementById(id);
@@ -693,26 +1504,34 @@ html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-botto
   document.documentElement.classList.toggle('touch', TOUCH);
   function show(name) { for (const s of SCREENS) $('s-' + s).classList.toggle('hidden', s !== name); document.body.classList.toggle('playing', name === null); }
 
+  // branding
+  document.title = G.BRAND.map(w => w[0] + w.slice(1).toLowerCase()).join(' ');
+  document.querySelectorAll('.brand').forEach(el => { el.innerHTML = ''; el.append(G.BRAND[0] + ' '); const s = document.createElement('span'); s.textContent = G.BRAND.slice(1).join(' '); el.append(s); });
+
   let cid;
   try { cid = sessionStorage.getItem('cpt-cid'); if (!cid) { cid = Math.random().toString(36).slice(2, 12); sessionStorage.setItem('cpt-cid', cid); } }
   catch (e) { cid = Math.random().toString(36).slice(2, 12); }
 
   let net = null, room = '', myName = '', welcomed = false, helloTimer = null;
-  let mode = 'join';          // join | status | lobby | game | wait | results
-  let myReady = false;
-  let game = null, startAt = 0, endAt = 0, gameActive = false, rankInfo = null;
-  let lastSnap = '', lastSnapAt = 0, sentScore = -1, sentAlive = true, pendingEv = null;
+  let mode = 'join';          // join | status | lobby | game | wait | results | solo
+  let myReady = false, lobbyGame = null;
+  let def = null, inst = null, startAt = 0, endAt = 0, gameActive = false, timeUp = false, rankInfo = null;
+  let lastSnap = '', lastScore = -1, lastState = '', lastSnapAt = 0, pendingEv = null;
   const floaters = [];
   // solo mode
-  let solo = false, soloElapsed = 0, overShownAt = 0, best = 0;
-  try { best = +localStorage.getItem('cpt-best') || 0; } catch (e) { }
+  let solo = false, soloElapsed = 0, overShownAt = 0;
+  const bestKey = id => 'cpt-best-' + id;
+  function getBest(id) {
+    try { return +localStorage.getItem(bestKey(id)) || (id === 'blocks' ? +localStorage.getItem('cpt-best') || 0 : 0); } catch (e) { return 0; }
+  }
+  function setGame(d) { def = d; document.body.dataset.game = d ? d.id : ''; }
 
   // ---------- join ----------
   let savedRoom = '';
   try { savedRoom = localStorage.getItem('cpt-room') || ''; } catch (e) { }
   $('room').value = (qs.get('room') || savedRoom).trim().slice(0, 32);
   try { $('name').value = localStorage.getItem('cpt-name') || ''; } catch (e) { }
-  ($('room').value ? $('name') : $('room')).focus();
+  if (!TOUCH) ($('room').value ? $('name') : $('room')).focus();
 
   const cleanName = s => String(s || '').replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16);
 
@@ -728,54 +1547,63 @@ html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-botto
     connect();
   });
 
+  // solo buttons, one per game
+  const soloWrap = $('soloGames');
+  for (const d of G.list) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'big alt'; b.textContent = d.name; b.title = d.tagline;
+    b.addEventListener('click', () => { b.blur(); startSolo(d); });
+    soloWrap.appendChild(b);
+  }
+
   // ---------- solo play ----------
-  $('soloBtn').addEventListener('click', e => { e.currentTarget.blur(); startSolo(); });
   $('soloResume').addEventListener('click', e => { e.currentTarget.blur(); resumeSolo(); });
-  $('soloRestart').addEventListener('click', e => { e.currentTarget.blur(); startSolo(); });
+  $('soloRestart').addEventListener('click', e => { e.currentTarget.blur(); startSolo(def); });
   $('soloMenu').addEventListener('click', e => { e.currentTarget.blur(); soloMenu(); });
   $('pauseBtn').addEventListener('click', e => { e.currentTarget.blur(); pauseSolo(); });
-  $('pauseBtn').addEventListener('pointerdown', e => e.stopPropagation());
 
-  function startSolo() {
-    solo = true;
+  function startSolo(d) {
+    solo = true; setGame(d);
     myName = cleanName($('name').value) || 'You';
-    game = new T.Game((Math.random() * 4294967296) >>> 0);
+    inst = d.create((Math.random() * 4294967296) >>> 0);
     startAt = performance.now() + 2000; endAt = Infinity;
-    gameActive = true; rankInfo = null; floaters.length = 0; soloElapsed = 0; overShownAt = 0;
+    gameActive = true; timeUp = false; rankInfo = null; floaters.length = 0; soloElapsed = 0; overShownAt = 0;
     mode = 'game'; show(null);
     $('pauseBtn').classList.remove('hidden');
   }
   function pauseSolo() {
-    if (!solo || mode !== 'game' || !game || !game.active) return;
-    game.releaseAll();
+    if (!solo || mode !== 'game' || !inst || inst.state !== 'play') return;
+    inst.releaseAll();
     mode = 'solo'; show('solo');
     $('soloTitle').textContent = 'Paused';
-    $('soloText').textContent = 'Score ' + game.score.toLocaleString() + ' · Best ' + Math.max(best, game.score).toLocaleString();
+    $('soloText').textContent = def.name + ' · Score ' + inst.score.toLocaleString() + ' · Best ' + Math.max(getBest(def.id), inst.score).toLocaleString();
     $('soloResume').classList.remove('hidden');
     $('pauseBtn').classList.add('hidden');
   }
   function resumeSolo() {
-    if (!solo || !game || !game.active) return;
+    if (!solo || !inst || inst.state !== 'play') return;
     startAt = performance.now() + 3000; // short countdown after a pause
     mode = 'game'; show(null);
     $('pauseBtn').classList.remove('hidden');
   }
   function soloOver() {
-    const newBest = game.score > best;
-    if (newBest) { best = game.score; try { localStorage.setItem('cpt-best', String(best)); } catch (e) { } }
+    const best = getBest(def.id), newBest = inst.score > best;
+    if (newBest) try { localStorage.setItem(bestKey(def.id), String(inst.score)); } catch (e) { }
     mode = 'solo'; show('solo');
-    $('soloTitle').textContent = newBest && best > 0 ? 'New best!' : 'Game over';
-    $('soloText').textContent = 'Score ' + game.score.toLocaleString() + ' · ' + game.lines + ' lines · Level ' + game.level + ' · Time ' + fmt(soloElapsed) + (newBest ? '' : ' · Best ' + best.toLocaleString());
+    const won = inst.state === 'done';
+    $('soloTitle').textContent = newBest && best > 0 ? 'New best!' : won ? def.doneLabel[0] + def.doneLabel.slice(1).toLowerCase() + '!' : 'Game over';
+    $('soloText').textContent = 'Score ' + inst.score.toLocaleString() + ' · ' + inst.endText() + (newBest ? '' : ' · Best ' + best.toLocaleString());
     $('soloResume').classList.add('hidden');
     $('pauseBtn').classList.add('hidden');
   }
   function soloMenu() {
-    solo = false; game = null; gameActive = false;
+    solo = false; inst = null; gameActive = false; setGame(null);
     $('pauseBtn').classList.add('hidden');
     mode = 'join'; show('join');
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden) pauseSolo(); });
 
+  // ---------- networking ----------
   function setStatus(t) {
     $('statusText').textContent = t;
     if (mode !== 'game') { mode = 'status'; show('status'); }
@@ -797,16 +1625,15 @@ html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-botto
   }
 
   function sayHello() {
-    net.send({ t: 'hello', name: myName, cid, g: !!(game && gameActive) });
+    net.send({ t: 'hello', name: myName, cid, g: !!(inst && gameActive && !solo) });
     clearTimeout(helloTimer);
     helloTimer = setTimeout(() => { if (!welcomed) sayHello(); }, 4000);
   }
 
   function netWarn(on) { $('netWarn').classList.toggle('hidden', !on || mode !== 'game'); }
 
-  // ---------- messages from the overlay ----------
   function handle(m) {
-    if (!m || typeof m !== 'object') return;
+    if (!m || typeof m !== 'object' || solo) return;
     switch (m.t) {
       case 'welcome':
         welcomed = true; netWarn(false);
@@ -822,19 +1649,36 @@ html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-botto
     }
   }
 
-  const fmt = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const fmt = G.fmtDown;
+
+  function renderHowto(d) {
+    $('lbGame').textContent = d.name;
+    $('lbTagline').textContent = d.tagline;
+    const t = $('howto'); t.innerHTML = '';
+    if (TOUCH) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = d.howtoTouch; t.appendChild(p); return; }
+    const tbl = document.createElement('table'); tbl.className = 'controls';
+    for (const [k, txt] of d.howtoKeys) {
+      const tr = document.createElement('tr');
+      const a = document.createElement('td'); a.innerHTML = k;              // static strings from the game files
+      const b = document.createElement('td'); b.innerHTML = txt;
+      tr.append(a, b); tbl.appendChild(tr);
+    }
+    t.appendChild(tbl);
+  }
 
   function onLobby(m) {
-    game = null; gameActive = false;
+    inst = null; gameActive = false;
+    const d = G.get(m.game);
+    if (lobbyGame !== d.id) { lobbyGame = d.id; renderHowto(d); }
+    setGame(d);
     if (mode !== 'lobby') { mode = 'lobby'; show('lobby'); }
     myReady = !!m.youReady;
     const btn = $('readyBtn');
     btn.classList.toggle('on', myReady);
     btn.textContent = myReady ? 'READY ✓' : "I'M READY";
-    const info = m.remaining > 0
+    $('lbInfo').innerHTML = m.remaining > 0
       ? `Ready check in <b>${fmt(m.remaining)}</b>. The match starts when more than ${m.pct}% of players are ready — <b>${m.ready}/${m.total}</b> so far (need ${m.need}).`
       : `Waiting for more than ${m.pct}% to be ready: <b>${m.ready}/${m.total}</b> (need ${m.need}).`;
-    $('lbInfo').innerHTML = info;
     $('lbBar').style.width = (m.total ? (m.ready / m.total) * 100 : 0) + '%';
     $('lbNeed').style.left = m.pct + '%';
     const ul = $('lbPlayers'); ul.textContent = '';
@@ -852,21 +1696,22 @@ html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-botto
   $('readyBtn').addEventListener('click', e => { toggleReady(); e.currentTarget.blur(); });
 
   function onStart(m) {
-    game = new T.Game(m.seed >>> 0);
+    setGame(G.get(m.game));
+    inst = def.create(m.seed >>> 0);
     const now = performance.now();
     startAt = now + (m.countdown || 0);
     endAt = startAt + (m.duration || 180000);
-    gameActive = true; rankInfo = null; floaters.length = 0;
-    lastSnap = ''; sentScore = -1; sentAlive = true; pendingEv = null;
+    gameActive = true; timeUp = false; rankInfo = null; floaters.length = 0;
+    lastSnap = ''; lastScore = -1; lastState = ''; pendingEv = null;
     mode = 'game'; show(null);
     sendSnap(true);
   }
 
   function onTick(m) {
-    if (m.spectating || !game) {
-      if (mode !== 'game' || !game) {
+    if (m.spectating || !inst) {
+      if (mode !== 'game' || !inst) {
         if (mode !== 'wait') { mode = 'wait'; show('wait'); }
-        $('waitText').textContent = `${m.alive} still alive · ${fmt(m.remaining)} left`;
+        $('waitText').textContent = `${G.get(m.game).name} · ${m.alive} still playing · ${fmt(m.remaining)} left`;
       }
       return;
     }
@@ -875,8 +1720,8 @@ html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-botto
   }
 
   function onEnd(m) {
-    if (game && game.active) { game.finished = true; sendSnap(true); }
-    gameActive = false; game && game.releaseAll();
+    if (inst && !timeUp) { timeUp = true; inst.finish(); sendSnap(true); }
+    gameActive = false; inst && inst.releaseAll();
     mode = 'results'; show('results'); netWarn(false);
     const ol = $('resList'); ol.textContent = '';
     (m.top || []).forEach((r, i) => {
@@ -885,94 +1730,111 @@ html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-botto
       if (m.rank === i + 1) li.classList.add('me');
       ol.appendChild(li);
     });
-    $('resYou').textContent = m.rank
+    $('resYou').textContent = (m.rank
       ? (m.rank === 1 ? '🏆 You won! ' : `You placed #${m.rank} of ${m.total}. `) + `Score: ${(m.score || 0).toLocaleString()}`
-      : 'You watched this one — you\'re in next round.';
+      : 'You watched this one — you\'re in next round.');
+    $('resReveal').textContent = m.reveal ? 'The word was ' + m.reveal : '';
+  }
+
+  function sendSnap(force) {
+    if (!inst || !net || solo) return;
+    const b = inst.snapshot(), st = inst.state;
+    if (!force && b === lastSnap && inst.score === lastScore && st === lastState && !pendingEv) return;
+    net.send({ t: 'snap', b, s: inst.score, st, i: inst.info(), tb: inst.tb, ev: pendingEv });
+    lastSnap = b; lastScore = inst.score; lastState = st; pendingEv = null;
   }
 
   // ---------- input ----------
-  const KEYMAP = {
-    ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
-    ArrowDown: 'down', KeyS: 'down', ArrowUp: 'rotcw', KeyW: 'rotcw', KeyX: 'rotcw',
-    KeyZ: 'rotccw', KeyQ: 'rotccw', Space: 'hard', KeyC: 'hold', Enter: 'hold', NumpadEnter: 'hold',
-  };
   const typing = () => { const a = document.activeElement; return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA'); };
+  const canPlay = () => mode === 'game' && inst && gameActive && !timeUp && performance.now() >= startAt && inst.state === 'play';
+  const SCROLLERS = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Backspace']);
 
   addEventListener('keydown', e => {
     if (typing()) return;
     if (mode === 'lobby' && e.code === 'KeyR' && !e.repeat) { toggleReady(); return; }
     if (solo && !e.repeat) {
-      if (e.code === 'KeyP' || e.code === 'Escape') { e.preventDefault(); if (mode === 'game') pauseSolo(); else if (game && game.active) resumeSolo(); return; }
-      if (e.code === 'KeyR' && (mode === 'solo' || (game && game.over))) { startSolo(); return; }
+      if (e.code === 'Escape' || (e.code === 'KeyP' && !(def && def.typing))) { e.preventDefault(); if (mode === 'game') pauseSolo(); else if (inst && inst.state === 'play') resumeSolo(); return; }
+      if (e.code === 'KeyR' && mode === 'solo') { startSolo(def); return; }
     }
-    const a = KEYMAP[e.code];
-    if (!a) return;
-    if (mode === 'game' || mode === 'lobby') e.preventDefault();
-    if (e.repeat || mode !== 'game' || !game || !gameActive || performance.now() < startAt) return;
-    game.press(a);
+    if (mode === 'game' && SCROLLERS.has(e.code)) e.preventDefault();
+    if (canPlay() && inst.key(e.code, true, e)) e.preventDefault();
   });
-  addEventListener('keyup', e => {
-    const a = KEYMAP[e.code];
-    if (a && game) game.release(a);
-  });
-  addEventListener('blur', () => { if (game) game.releaseAll(); });
+  addEventListener('keyup', e => { if (inst && mode === 'game') inst.key(e.code, false, e); });
+  addEventListener('blur', () => { if (inst) inst.releaseAll(); });
 
-  // ---------- touch buttons ----------
-  const canPlay = () => mode === 'game' && game && gameActive && performance.now() >= startAt;
+  // on-screen buttons (all games)
   document.querySelectorAll('#touchPads button[data-a]').forEach(btn => {
-    const a = btn.dataset.a, holdable = a === 'left' || a === 'right' || a === 'down';
+    const a = btn.dataset.a;
     let id = null;
     btn.addEventListener('pointerdown', e => {
       e.preventDefault();
       if (id !== null) return;
       id = e.pointerId; try { btn.setPointerCapture(id); } catch (err) { }
       btn.classList.add('on');
-      if (canPlay()) { game.press(a); if (navigator.vibrate) try { navigator.vibrate(6); } catch (err) { } }
+      if (canPlay()) { inst.btn(a, true); if (TOUCH && navigator.vibrate) try { navigator.vibrate(6); } catch (err) { } }
     });
     const up = e => {
       if (e.pointerId !== id) return;
       id = null; btn.classList.remove('on');
-      if (holdable && game) game.release(a);
+      if (inst) inst.btn(a, false);
     };
     btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up); btn.addEventListener('lostpointercapture', up);
     btn.addEventListener('contextmenu', e => e.preventDefault());
   });
-  document.addEventListener('touchmove', e => { if (mode === 'game') e.preventDefault(); }, { passive: false });
-  document.addEventListener('dblclick', e => e.preventDefault());
 
-  // ---------- networking of the field ----------
-  function sendSnap(force) {
-    if (!game || !net) return;
-    const b = game.snapshot(), alive = !game.over;
-    if (!force && b === lastSnap && game.score === sentScore && alive === sentAlive && !pendingEv) return;
-    net.send({ t: 'snap', b, s: game.score, l: game.lines, lv: game.level, a: alive, ev: pendingEv });
-    lastSnap = b; sentScore = game.score; sentAlive = alive; pendingEv = null;
-  }
+  // pointer on the game canvas (Mines clicks, Snake swipes)
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  cv.addEventListener('pointerdown', e => {
+    if (!canPlay() || !inst.pointer) return;
+    e.preventDefault();
+    try { cv.setPointerCapture(e.pointerId); } catch (err) { }
+    inst.pointer('down', e.clientX, e.clientY, e.button, e.pointerType);
+  });
+  cv.addEventListener('pointermove', e => { if (inst && inst.pointer && mode === 'game') inst.pointer('move', e.clientX, e.clientY, e.button, e.pointerType); });
+  const cvUp = e => { if (inst && inst.pointer && mode === 'game') inst.pointer('up', e.clientX, e.clientY, e.button, e.pointerType); };
+  cv.addEventListener('pointerup', cvUp); cv.addEventListener('pointercancel', cvUp);
+  cv.addEventListener('contextmenu', e => { if (mode === 'game') e.preventDefault(); });
+  document.addEventListener('touchmove', e => { if (mode === 'game') e.preventDefault(); }, { passive: false });
+  document.addEventListener('dblclick', e => { if (mode === 'game') e.preventDefault(); });
 
   // ---------- main loop ----------
-  const cv = $('cv'), ctx = cv.getContext('2d');
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(100, now - last); last = now;
-    if (game && gameActive && mode === 'game' && now >= startAt && game.active) {
-      game.update(dt);
-      if (solo) soloElapsed += dt;
-      if (now >= endAt) { game.finished = true; game.releaseAll(); }
+    if (inst && gameActive && mode === 'game' && now >= startAt && !timeUp && inst.state === 'play') {
+      inst.update(dt);
+      if (solo && inst.state === 'play') soloElapsed += dt;
+      if (now >= endAt) { timeUp = true; inst.finish(); inst.releaseAll(); }
     }
-    if (solo && game && game.over && mode === 'game') {
+    if (inst && inst.events.length) {
+      for (const ev of inst.events) { floaters.push({ text: ev.text, t: now, pts: ev.pts }); if (ev.big) pendingEv = ev.text; }
+      inst.events.length = 0;
+    }
+    if (solo && inst && inst.state !== 'play' && mode === 'game') {
       if (!overShownAt) overShownAt = now;
-      else if (now - overShownAt > 1400) soloOver();
+      else if (now - overShownAt > 1500) soloOver();
     }
-    if (game && game.events.length) {
-      for (const ev of game.events) { floaters.push({ text: ev.text, t: now, pts: ev.pts }); if (ev.big) pendingEv = ev.text; }
-      game.events.length = 0;
-    }
-    if (game && gameActive && now - lastSnapAt >= 100) { lastSnapAt = now; sendSnap(false); }
+    if (inst && gameActive && now - lastSnapAt >= 100) { lastSnapAt = now; sendSnap(false); }
+    if (inst && inst.syncPad && mode === 'game') { const pg = document.getElementById('pg-' + def.id); if (pg) inst.syncPad(pg); }
     render(now);
     requestAnimationFrame(frame);
   }
 
-  function font(px, w = 400) { return `${w} ${Math.round(px)}px 'Russo One', Inter, sans-serif`; }
+  // free screen area once the visible on-screen pads are taken out
+  function playArea(W, H) {
+    let x0 = 8, y0 = 8, x1 = W - 8, y1 = H - 8;
+    const land = W > H;
+    document.querySelectorAll('#touchPads .pad').forEach(el => {
+      if (!el.getClientRects().length) return;   // hidden (fixed elements have no offsetParent, so check rects)
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      const side = land && r.width < W * 0.45 && (r.right < W * 0.42 || r.left > W * 0.58);
+      if (side) { if (r.left + r.width / 2 < W / 2) x0 = Math.max(x0, r.right + 10); else x1 = Math.min(x1, r.left - 10); }
+      else y1 = Math.min(y1, r.top - 8);
+    });
+    if (!$('pauseBtn').classList.contains('hidden') && TOUCH) y0 = Math.max(y0, 58);
+    return { x: x0, y: y0, w: Math.max(50, x1 - x0), h: Math.max(50, y1 - y0) };
+  }
 
   function render(now) {
     const dpr = window.devicePixelRatio || 1, W = innerWidth, H = innerHeight;
@@ -981,138 +1843,56 @@ html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-botto
     const g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, '#0b0e1d'); g.addColorStop(1, '#05060c');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-
-    if (!game) { drawIdle(now, W, H); return; }
+    if (!inst) { drawIdle(W, H); return; }
 
     const left = Math.max(0, endAt - now);
-    const timeTxt = solo ? fmt(soloElapsed) : fmt(now < startAt ? endAt - startAt : left);
-    const timeCol = !solo && left < 15000 && now >= startAt ? '#ff6b7a' : '#fff';
-    let cell, bx, by;
+    const view = {
+      now, name: myName, touch: TOUCH, playing: now >= startAt,
+      timeTxt: solo ? G.fmt(soloElapsed) : G.fmtDown(now < startAt ? endAt - startAt : left),
+      timeCol: !solo && left < 15000 && now >= startAt ? '#ff6b7a' : '#fff',
+      rank: rankInfo, best: solo ? getBest(def.id) : null,
+    };
+    const R = inst.render(ctx, playArea(W, H), view) || { x: 0, y: 0, w: W, h: H };
+    const u = R.w / 10;
 
-    if (!TOUCH) {
-      // ---- desktop: hold + stats left, board centre, next + time right ----
-      cell = Math.max(8, Math.floor(Math.min((H - 70) / 21, (W - 32) / 23)));
-      const bw = cell * 10, bh = cell * 20;
-      const ox = Math.round((W - cell * 23) / 2), oy = Math.round((H - bh) / 2 + cell * 0.4);
-      bx = ox + cell * 6.5; by = oy;
-      const nx = bx + bw + cell * 1.5;
-      drawBoard(bx, by, cell);
-      label('HOLD', ox, oy - cell * 0.3, cell);
-      box(ox, oy, cell * 5, cell * 3.4);
-      T.drawPreview(ctx, game.hold, ox + cell * 2.5, oy + cell * 1.7, cell * 0.85, game.holdUsed ? 0.35 : 1);
-      label('NEXT', nx, oy - cell * 0.3, cell);
-      box(nx, oy, cell * 5, cell * 13.2);
-      game.refill();
-      for (let i = 0; i < 5; i++) T.drawPreview(ctx, game.queue[i], nx + cell * 2.5, oy + cell * (1.6 + i * 2.5), cell * (i === 0 ? 0.9 : 0.72));
-      stat('SCORE', game.score.toLocaleString(), ox, oy + cell * 5, cell, '#fff', 1.25);
-      stat('LEVEL', game.level, ox, oy + cell * 8, cell);
-      stat('LINES', game.lines, ox, oy + cell * 10.6, cell);
-      stat('TIME', timeTxt, nx, oy + cell * 14.6, cell, timeCol);
-      if (rankInfo) stat('RANK', '#' + rankInfo.rank + ' / ' + rankInfo.total, nx, oy + cell * 17.2, cell, rankInfo.rank === 1 ? '#ffd820' : '#fff');
-      else if (solo) stat('BEST', Math.max(best, game.score).toLocaleString(), nx, oy + cell * 17.2, cell, game.score > best && best > 0 ? '#ffd820' : '#fff');
-      ctx.textAlign = 'center'; ctx.fillStyle = '#9aa3c7'; ctx.font = font(cell * 0.6);
-      ctx.fillText(myName, bx + bw / 2, oy - cell * 0.35);
-    } else {
-      // ---- phone: board + narrow side column, touch buttons take the rest ----
-      const a = playArea(W, H);
-      cell = Math.max(6, Math.floor(Math.min(a.w / 14.9, a.h / 20.4)));
-      const bw = cell * 10, bh = cell * 20, cw = cell * 4.4;
-      bx = Math.round(a.x + (a.w - (bw + cell * 0.5 + cw)) / 2);
-      by = Math.round(a.y + (a.h - bh) / 2);
-      const sx = bx + bw + cell * 0.5;
-      drawBoard(bx, by, cell);
-      let y = by;
-      smallLabel('HOLD', sx, y + cell * 0.45, cell); y += cell * 0.6;
-      box(sx, y, cw, cell * 2.6);
-      T.drawPreview(ctx, game.hold, sx + cw / 2, y + cell * 1.3, cell * 0.7, game.holdUsed ? 0.35 : 1); y += cell * 3;
-      smallLabel('NEXT', sx, y + cell * 0.45, cell); y += cell * 0.6;
-      box(sx, y, cw, cell * 6.6);
-      game.refill();
-      for (let i = 0; i < 3; i++) T.drawPreview(ctx, game.queue[i], sx + cw / 2, y + cell * (1.2 + i * 2.1), cell * (i === 0 ? 0.72 : 0.58));
-      y += cell * 7.1;
-      const items = [['SCORE', game.score.toLocaleString(), '#fff'], ['TIME', timeTxt, timeCol], ['LEVEL', game.level, '#fff'], ['LINES', game.lines, '#fff']];
-      if (rankInfo) items.push(['RANK', '#' + rankInfo.rank + '/' + rankInfo.total, rankInfo.rank === 1 ? '#ffd820' : '#fff']);
-      else if (solo) items.push(['BEST', Math.max(best, game.score).toLocaleString(), game.score > best && best > 0 ? '#ffd820' : '#fff']);
-      for (const [n, v, c] of items) { statFit(n, v, sx, y, cw, cell, c); y += cell * 1.55; }
-    }
-
-    const bw = cell * 10, bh = cell * 20;
-    // floaters
+    // floating callouts
     for (let i = floaters.length - 1; i >= 0; i--) {
       const f = floaters[i], age = (now - f.t) / 1400;
       if (age > 1) { floaters.splice(i, 1); continue; }
       ctx.globalAlpha = 1 - age * age;
-      ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+      ctx.textAlign = 'center';
       const parts = f.text.split(' · ');
-      parts.forEach((p, k) => { ctx.font = font(cell * (k === 0 ? 0.85 : 0.6)); ctx.fillText(p, bx + bw / 2, by + bh * 0.38 - age * cell * 2 + k * cell * 0.85); });
-      if (f.pts) { ctx.font = font(cell * 0.6); ctx.fillStyle = '#ffd820'; ctx.fillText('+' + f.pts.toLocaleString(), bx + bw / 2, by + bh * 0.38 - age * cell * 2 + parts.length * cell * 0.85); }
+      const y0 = R.y + R.h * 0.34 - age * u * 2;
+      parts.forEach((p, k) => {
+        ctx.font = G.font(u * (k === 0 ? 0.85 : 0.6));
+        ctx.lineWidth = u * 0.16; ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+        ctx.strokeText(p, R.x + R.w / 2, y0 + k * u * 0.85);
+        ctx.fillStyle = '#fff'; ctx.fillText(p, R.x + R.w / 2, y0 + k * u * 0.85);
+      });
+      if (f.pts) { ctx.font = G.font(u * 0.6); ctx.fillStyle = '#ffd820'; ctx.fillText('+' + f.pts.toLocaleString(), R.x + R.w / 2, y0 + parts.length * u * 0.85); }
       ctx.globalAlpha = 1;
     }
 
-    // overlays
-    if (now < startAt) banner(String(Math.ceil((startAt - now) / 1000)), 'Get ready!', bx, by, bw, bh, cell);
-    else if (now - startAt < 700 && game.active) banner('GO!', '', bx, by, bw, bh, cell);
-    else if (game.over) banner('TOPPED OUT', 'Final score ' + game.score.toLocaleString(), bx, by, bw, bh, cell, 0.6);
-    else if (game.finished) banner('TIME!', 'Final score ' + game.score.toLocaleString(), bx, by, bw, bh, cell, 0.75);
+    // banners
+    const st = inst.state;
+    if (now < startAt) banner(String(Math.ceil((startAt - now) / 1000)), solo ? def.name : 'Get ready!', R, u);
+    else if (now - startAt < 700 && st === 'play') banner('GO!', '', R, u);
+    else if (st === 'out') banner(def.outLabel || 'OUT', 'Final score ' + inst.score.toLocaleString(), R, u, 0.6);
+    else if (st === 'done') banner(def.doneLabel + '!', solo ? '' : 'Score ' + inst.score.toLocaleString() + ' · waiting for the others', R, u, 0.7);
+    else if (timeUp) banner('TIME!', 'Final score ' + inst.score.toLocaleString(), R, u, 0.75);
   }
 
-  function drawBoard(bx, oy, cell) {
-    const bw = cell * 10, bh = cell * 20;
-    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx - 3, oy - 3, bw + 6, bh + 6);
-    ctx.strokeStyle = 'rgba(180,76,255,0.6)'; ctx.lineWidth = 2; ctx.strokeRect(bx - 3, oy - 3, bw + 6, bh + 6);
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1; ctx.beginPath();
-    for (let x = 1; x < 10; x++) { ctx.moveTo(bx + x * cell + .5, oy); ctx.lineTo(bx + x * cell + .5, oy + bh); }
-    for (let y = 1; y < 20; y++) { ctx.moveTo(bx, oy + y * cell + .5); ctx.lineTo(bx + bw, oy + y * cell + .5); }
-    ctx.stroke();
-    const dim = game.over ? 0.35 : 1;
-    for (let r = 0; r < 20; r++) for (let c = 0; c < 10; c++) {
-      const v = game.board[(T.TOP + r) * T.COLS + c];
-      if (v) T.drawCell(ctx, bx + c * cell, oy + r * cell, cell, v, dim);
-    }
-    if (game.piece && !game.over) {
-      const code = T.TYPES.indexOf(game.piece.type) + 1;
-      const gd = game.ghostDistance();
-      if (!game.finished) for (const [x, y] of game.pieceCells(game.piece, gd)) if (y >= T.TOP) T.drawGhostCell(ctx, bx + x * cell, oy + (y - T.TOP) * cell, cell, code);
-      for (const [x, y] of game.pieceCells()) if (y >= T.TOP) T.drawCell(ctx, bx + x * cell, oy + (y - T.TOP) * cell, cell, code, game.finished ? 0.5 : 1);
-    }
-  }
-
-  // free screen area once the touch pads are taken out
-  function playArea(W, H) {
-    const pad = 8;
-    const L = $('padL').getBoundingClientRect(), R = $('padR').getBoundingClientRect();
-    if (W > H) { // landscape: pads at the sides
-      const x0 = Math.max(L.right, pad) + pad, x1 = Math.min(R.left, W - pad) - pad;
-      return { x: x0, y: pad, w: x1 - x0, h: H - pad * 2 };
-    }
-    const top = Math.min(L.top, R.top);
-    return { x: pad, y: pad, w: W - pad * 2, h: top - pad * 2 };
-  }
-  function smallLabel(t, x, y, cell) { ctx.fillStyle = '#9aa3c7'; ctx.font = font(cell * 0.42); ctx.textAlign = 'left'; ctx.fillText(t, x, y); }
-  function statFit(name, val, x, y, w, cell, color) {
-    smallLabel(name, x, y + cell * 0.45, cell);
-    let sz = cell * 0.72; ctx.font = font(sz);
-    const t = String(val);
-    while (sz > cell * 0.35 && ctx.measureText(t).width > w) { sz *= 0.9; ctx.font = font(sz); }
-    ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.fillText(t, x, y + cell * 1.2);
-  }
-
-  function label(t, x, y, cell) { ctx.fillStyle = '#9aa3c7'; ctx.font = font(cell * 0.55); ctx.textAlign = 'left'; ctx.fillText(t, x, y); }
-  function box(x, y, w, h) { ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(x, y, w, h); ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1); }
-  function stat(name, val, x, y, cell, color = '#fff', scale = 1) {
-    ctx.textAlign = 'left'; ctx.fillStyle = '#9aa3c7'; ctx.font = font(cell * 0.5); ctx.fillText(name, x, y);
-    ctx.fillStyle = color; ctx.font = font(cell * 0.85 * scale); ctx.fillText(String(val), x, y + cell * 1.05 * scale);
-  }
-  function banner(big, small, bx, by, bw, bh, cell, scale = 1) {
-    ctx.fillStyle = 'rgba(5,6,12,0.55)'; ctx.fillRect(bx, by + bh * 0.36, bw, cell * 3.6);
+  function banner(big, small, R, u, scale = 1) {
+    ctx.fillStyle = 'rgba(5,6,12,0.6)'; ctx.fillRect(R.x, R.y + R.h * 0.36, R.w, u * 3.6);
     ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
-    ctx.font = font(cell * 1.8 * scale); ctx.fillText(big, bx + bw / 2, by + bh * 0.36 + cell * 2.1);
-    if (small) { ctx.font = font(cell * 0.55); ctx.fillStyle = '#c9cff0'; ctx.fillText(small, bx + bw / 2, by + bh * 0.36 + cell * 3.1); }
+    ctx.font = G.font(u * 1.8 * scale); ctx.fillText(G.fit(ctx, big, R.w - u * 0.4), R.x + R.w / 2, R.y + R.h * 0.36 + u * 2.1);
+    if (small) { ctx.font = G.font(u * 0.5); ctx.fillStyle = '#c9cff0'; ctx.fillText(G.fit(ctx, small, R.w - u * 0.4), R.x + R.w / 2, R.y + R.h * 0.36 + u * 3.1); }
   }
 
   // falling-pieces backdrop for menus
+  const T = window.BlocksEngine;
   const drops = Array.from({ length: 18 }, (_, i) => ({ x: Math.random(), y: Math.random(), v: 0.02 + Math.random() * 0.04, t: T.TYPES[i % 7], s: 14 + Math.random() * 18 }));
-  function drawIdle(now, W, H) {
+  function drawIdle(W, H) {
     for (const d of drops) {
       d.y += d.v / 60; if (d.y > 1.1) { d.y = -0.1; d.x = Math.random(); }
       T.drawPreview(ctx, d.t, d.x * W, d.y * H, d.s, 0.18);
