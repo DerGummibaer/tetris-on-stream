@@ -476,7 +476,7 @@
     peer.on('open', () => connect());
     peer.on('error', e => {
       if (e.type === 'peer-unavailable') {
-        h.onStatus('The game isn\'t open on stream right now. Waiting for it to start…');
+        h.onStatus('No game found for streamer "' + room + '". Check the spelling, or the game isn\'t open on stream yet. Retrying…');
         schedule(4000);
       } else if (e.type === 'browser-incompatible') {
         h.onStatus('Your browser does not support WebRTC. Please use a current Chrome, Firefox, Edge or Safari.');
@@ -527,7 +527,9 @@
   const COUNTDOWN_MS = 3000;
   const EMPTY = '0'.repeat(200);
 
-  const room = Net.cleanRoom(qs.get('room')) || 'dergummibaer';
+  // ?room=YourName  (shown on screen as typed; matching ignores upper/lower case)
+  const roomLabel = (qs.get('room') || 'dergummibaer').trim().slice(0, 32);
+  const room = Net.cleanRoom(roomLabel) || 'dergummibaer';
   const joinText = qs.get('join') || new URL('./', location.href).href.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
   // ---------------- state ----------------
@@ -758,11 +760,12 @@
     const tw = ctx.measureText('CHAT PLAYS ').width;
     ctx.fillStyle = g; ctx.fillText('TETRIS', x + 22 * U + tw, cy);
     // join info
-    ctx.textAlign = 'right'; ctx.font = font(24 * U); ctx.fillStyle = '#fff';
-    ctx.fillText(joinText, x + w - 22 * U, cy);
-    const jw = ctx.measureText(joinText).width;
-    ctx.fillStyle = '#9aa3c7'; ctx.font = font(20 * U);
-    ctx.fillText('PLAY AT  ', x + w - 22 * U - jw, cy);
+    let rx = x + w - 22 * U;
+    const part = (txt, f, col) => { ctx.font = font(f * U); ctx.fillStyle = col; ctx.fillText(txt, rx, cy); rx -= ctx.measureText(txt).width; };
+    ctx.textAlign = 'right';
+    part(roomLabel, 24, GOLD); part('STREAMER  ', 20, '#9aa3c7');
+    rx -= 26 * U;
+    part(joinText, 24, '#fff'); part('PLAY AT  ', 20, '#9aa3c7');
     // status (centre)
     ctx.textAlign = 'center'; ctx.font = font(24 * U); ctx.fillStyle = '#fff';
     let s = '';
@@ -790,12 +793,16 @@
   }
 
   function drawEmpty(a, U) {
-    const w = 900 * U, h = 220 * U, x = a.x + (a.w - w) / 2, y = a.y + (a.h - h) / 2;
+    const w = 900 * U, h = 250 * U, x = a.x + (a.w - w) / 2, y = a.y + (a.h - h) / 2;
     ctx.fillStyle = 'rgba(10,12,26,0.8)'; rr(x, y, w, h, 20 * U); ctx.fill();
     ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = font(44 * U);
     ctx.fillText('JOIN THE GAME!', x + w / 2, y + 80 * U);
     ctx.font = font(28 * U); ctx.fillStyle = '#c9cff0';
-    ctx.fillText(joinText, x + w / 2, y + 150 * U);
+    ctx.fillText(joinText, x + w / 2, y + 140 * U);
+    ctx.font = font(24 * U); ctx.fillStyle = '#9aa3c7';
+    ctx.fillText('STREAMER NAME', x + w / 2, y + 185 * U);
+    ctx.font = font(32 * U); ctx.fillStyle = GOLD;
+    ctx.fillText(roomLabel, x + w / 2, y + 222 * U);
   }
 
   function drawField(p, x, y, cell, rank, t) {
