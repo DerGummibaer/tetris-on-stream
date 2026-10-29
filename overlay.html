@@ -568,7 +568,7 @@
   }
 
   const net = Net.createHost(room, LOCAL, {
-    onStatus(s) { netStatus = s; },
+    onStatus(s) { netStatus = s; if (s === 'online' && !loggedOpen) { loggedOpen = true; logEvent('overlay opened'); } },
     onOpen() { },
     onMessage(id, m) {
       if (!m || typeof m !== 'object') return;
@@ -629,6 +629,21 @@
   const needFor = total => Math.floor(total * PCT / 100 + 1e-9) + 1;   // "more than PCT %"
   const ranked = list => list.slice().sort((a, b) => b.score - a.score || b.lines - a.lines);
 
+  // ---------------- usage log (Google Sheet via Apps Script, see apps-script-log.gs) ----------------
+  // Paste your Apps Script web-app URL here. Leave empty to turn logging off.
+  const LOG_URL = 'https://script.google.com/macros/s/AKfycbzoRuPXwPTUuRZh3eyuo0ZYMO4y4NFvwvkgRVveJQ0Jj5a0GH0AeDe2-blEOqJb7_6log/exec';
+  let loggedOpen = false;
+  const openedAt = Date.now();
+  function logEvent(event, extra) {
+    if (!LOG_URL || LOCAL) return;
+    const body = JSON.stringify(Object.assign({ streamer: roomLabel, event, site: location.host }, extra || {}));
+    try {
+      if (event === 'overlay closed' && navigator.sendBeacon) { navigator.sendBeacon(LOG_URL, new Blob([body], { type: 'text/plain' })); return; }
+      fetch(LOG_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body }).catch(() => { });
+    } catch (e) { }
+  }
+  addEventListener('pagehide', () => { if (loggedOpen) logEvent('overlay closed', { minutes: Math.round((Date.now() - openedAt) / 60000) }); });
+
   function startMatch() {
     const seed = (Math.random() * 4294967296) >>> 0;
     players = players.filter(p => p.connected);
@@ -638,6 +653,7 @@
     countdownEnd = now() + COUNTDOWN_MS;
     matchEnd = countdownEnd + MATCH_MS;
     for (const p of players) net.send(p.conn, { t: 'start', seed, countdown: COUNTDOWN_MS, duration: MATCH_MS });
+    logEvent('match started', { players: players.length });
   }
 
   function endMatch() {
@@ -646,6 +662,7 @@
     resultsEnd = now() + RESULTS_MS;
     results = ranked(matchPlayers());
     for (const p of players) if (p.connected) net.send(p.conn, endMsg(p));
+    logEvent('match ended', { players: results.length, top: results.length ? results[0].score : 0 });
   }
 
   function endMsg(p) {
