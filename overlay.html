@@ -1147,6 +1147,533 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
 })();
 </script>
 <script>
+/* Hangman race – everyone gets the same hidden word or phrase (with a category hint).
+ * 6 wrong letters and you're out. Solve with fewer misses, faster = more points.
+ * The overlay shows only blanks filling in and the figure, never the letters. */
+(function () {
+  'use strict';
+  const G = window.Games;
+  const MAX_MISS = 6;
+  const LIST = {
+    Animal: ['ELEPHANT', 'GIRAFFE', 'PENGUIN', 'KANGAROO', 'OCTOPUS', 'CROCODILE', 'HEDGEHOG', 'FLAMINGO', 'CHEETAH', 'DOLPHIN', 'BUTTERFLY', 'SQUIRREL', 'RACCOON', 'TORTOISE', 'JELLYFISH', 'POLAR BEAR', 'SEA TURTLE', 'HONEY BEE', 'GOLDFISH', 'PARROT', 'GORILLA', 'HAMSTER', 'PEACOCK', 'REINDEER', 'WALRUS'],
+    Food: ['SPAGHETTI', 'PANCAKES', 'CHEESEBURGER', 'PINEAPPLE', 'AVOCADO', 'CHOCOLATE', 'BROCCOLI', 'STRAWBERRY', 'HOT DOG', 'ICE CREAM', 'FRENCH FRIES', 'APPLE PIE', 'CUPCAKE', 'POPCORN', 'BURRITO', 'LASAGNA', 'MILKSHAKE', 'PRETZEL', 'WATERMELON', 'GARLIC BREAD', 'FRIED RICE', 'MEATBALLS', 'NOODLE SOUP', 'CUCUMBER', 'BLUEBERRY'],
+    Gaming: ['HIGH SCORE', 'GAME OVER', 'BOSS FIGHT', 'POWER UP', 'SPEEDRUN', 'JOYSTICK', 'CONTROLLER', 'SAVE POINT', 'EXTRA LIFE', 'RESPAWN', 'LOADING SCREEN', 'LEVEL UP', 'SIDE QUEST', 'HEADSHOT', 'INVENTORY', 'MULTIPLAYER', 'CHECKPOINT', 'LEADERBOARD', 'ACHIEVEMENT', 'PIXEL ART', 'FINAL BOSS', 'CO OP', 'GAMEPAD', 'TUTORIAL', 'COMBO BREAKER'],
+    Streaming: ['LIVE STREAM', 'CHAT MESSAGE', 'SUBSCRIBER', 'MODERATOR', 'WEBCAM', 'MICROPHONE', 'HIGHLIGHT', 'EMOTE', 'RAID PARTY', 'FOLLOWER', 'GREEN SCREEN', 'JUST CHATTING', 'CLIP THAT', 'STREAM SNIPER', 'BACKSEAT GAMING', 'HYPE TRAIN', 'GIVEAWAY', 'OVERLAY', 'BIT DONATION', 'LURKER'],
+    Place: ['VOLCANO', 'LIBRARY', 'HOSPITAL', 'AIRPORT', 'LIGHTHOUSE', 'WATERFALL', 'SUPERMARKET', 'SKYSCRAPER', 'RAINFOREST', 'SWIMMING POOL', 'TRAIN STATION', 'MOVIE THEATER', 'AMUSEMENT PARK', 'BACKYARD', 'GREENHOUSE', 'MUSEUM', 'STADIUM', 'DESERT ISLAND', 'BOWLING ALLEY', 'CASTLE'],
+    Thing: ['UMBRELLA', 'TELESCOPE', 'BACKPACK', 'TOOTHBRUSH', 'SKATEBOARD', 'HEADPHONES', 'CANDLE', 'KEYBOARD', 'SUNGLASSES', 'TRAMPOLINE', 'WASHING MACHINE', 'ALARM CLOCK', 'PAPER PLANE', 'TREASURE CHEST', 'ROLLER COASTER', 'SNOWMAN', 'HOT AIR BALLOON', 'BICYCLE', 'FIREWORKS', 'SANDCASTLE', 'SPACESHIP', 'LAWN MOWER', 'TEDDY BEAR', 'RUBBER DUCK', 'MAGIC WAND'],
+    Saying: ['PIECE OF CAKE', 'BREAK A LEG', 'ON THE BALL', 'SPILL THE BEANS', 'BEST OF LUCK', 'TIME FLIES', 'ONCE IN A WHILE', 'NO PAIN NO GAIN', 'BETTER LATE THAN NEVER', 'BACK TO SQUARE ONE', 'HIT THE SACK', 'UNDER THE WEATHER', 'CALL IT A DAY', 'COLD FEET', 'EASY PEASY', 'GAME CHANGER', 'IN THE ZONE', 'LAST MINUTE', 'ROCK AND ROLL', 'GOOD VIBES'],
+  };
+  const ENTRIES = [];
+  for (const cat of Object.keys(LIST)) for (const w of LIST[cat]) ENTRIES.push([cat, w]);
+  const pick = seed => ENTRIES[(Math.imul(seed >>> 0, 2654435761) >>> 0) % ENTRIES.length];
+
+  G.register({
+    id: 'hangman', name: 'Hangman', defaultTime: 120, cols: 12, rows: 9,
+    typing: true,
+    tagline: 'Same hidden word or phrase for everyone. Guess letters, 6 misses and you are out. Fewer misses and faster wins.',
+    howtoKeys: [
+      ['Type a letter', 'Guess it (or use the on-screen keyboard)'],
+      ['', 'You get a category as a hint. 6 wrong letters and you are out.'],
+    ],
+    howtoTouch: 'Tap letters on the on-screen keyboard. You get a category hint. 6 wrong letters and you are out.',
+    doneLabel: 'SOLVED', outLabel: 'HANGED',
+    reveal: seed => pick(seed)[1],
+
+    create(seed) {
+      const [cat, phrase] = pick(seed);
+      const letters = new Set(phrase.replace(/[^A-Z]/g, ''));
+      const guessed = new Set();
+      let miss = 0, elapsed = 0, solved = false, failed = false, base = 0, padVer = 1, padSeen = 0, shakeAt = -1e9;
+      const found = () => [...letters].filter(l => guessed.has(l)).length;
+      const revealedCount = () => phrase.split('').filter(c => /[A-Z]/.test(c) && guessed.has(c)).length;
+
+      function guess(l) {
+        if (solved || failed || guessed.has(l)) return;
+        guessed.add(l); padVer++;
+        if (!letters.has(l)) {
+          miss++; shakeAt = performance.now();
+          if (miss >= MAX_MISS) { failed = true; inst.events.push({ text: 'HANGED!', big: false }); }
+        } else if (found() === letters.size) {
+          solved = true;
+          base = 1000 + (MAX_MISS - miss) * 200 + Math.max(0, 600 - Math.floor(elapsed / 1000) * 3);
+          inst.events.push({ text: miss === 0 ? 'FLAWLESS!' : 'SOLVED!', big: true, pts: base });
+        }
+      }
+
+      const inst = {
+        events: [],
+        get score() { return solved ? base : revealedCount() * 20; },
+        get state() { return solved ? 'done' : failed ? 'out' : 'play'; },
+        get tb() { return solved ? -elapsed : revealedCount(); },
+        update(dt) { if (!solved && !failed) elapsed += dt; },
+        key(code, down, e) {
+          const m = /^Key([A-Z])$/.exec(code);
+          if (!m) return false;
+          if (down && !(e && (e.ctrlKey || e.metaKey || e.altKey || e.repeat))) guess(m[1]);
+          return true;
+        },
+        btn(a, down) { if (down && a.startsWith('k:') && /^[a-z]$/.test(a.slice(2))) guess(a.slice(2).toUpperCase()); },
+        releaseAll() { },
+        finish() { if (!solved) failed = failed || false; },
+        snapshot() {
+          let s = String(miss);
+          for (const c of phrase) s += c === ' ' ? '.' : guessed.has(c) ? 'r' : 'h';
+          return s;
+        },
+        info() { return '❌' + miss + '/' + MAX_MISS; },
+        endText() { return (solved ? 'Solved with ' + miss + ' miss' + (miss === 1 ? '' : 'es') + ' in ' + G.fmt(elapsed) : 'Not solved') + ' · It was ' + phrase; },
+        syncPad(el) {
+          if (padSeen === padVer) return; padSeen = padVer;
+          el.querySelectorAll('button[data-a^="k:"]').forEach(b => {
+            const l = b.dataset.a.slice(2).toUpperCase();
+            b.dataset.st = guessed.has(l) ? (letters.has(l) ? 'g' : 'x') : '';
+          });
+        },
+        render(ctx, area, view) {
+          const now = performance.now();
+          // stats on top, figure, then the phrase
+          const u = Math.min(area.w / 12, area.h / 13.5, view.touch ? 1e9 : 60);
+          const cx = area.x + area.w / 2;
+          let y = area.y + (area.h - u * 13) / 2;
+          const stats = G.baseStats(inst, view, [['MISSES', miss + '/' + MAX_MISS, miss >= 4 ? '#ff6b7a' : '#fff']]);
+          G.drawStats(ctx, stats, cx - u * 5.5, y, u * 11, u * 0.95, true);
+          y += u * 1.7;
+          ctx.textAlign = 'center'; ctx.fillStyle = '#9aa3c7'; ctx.font = G.font(u * 0.45);
+          ctx.fillText('CATEGORY', cx, y + u * 0.3);
+          ctx.fillStyle = '#ffd820'; ctx.font = G.font(u * 0.75);
+          ctx.fillText(cat.toUpperCase(), cx, y + u * 1.15);
+          y += u * 1.5;
+          const shake = now - shakeAt < 350 ? Math.sin((now - shakeAt) / 22) * u * 0.12 * (1 - (now - shakeAt) / 350) : 0;
+          drawFigure(ctx, cx - u * 2.5 + shake, y, u * 5, u * 5.2, miss, 1, u * 0.14);
+          y += u * 5.7;
+          // phrase slots, wrapped by word
+          const words = phrase.split(' ');
+          const maxPer = 11;
+          const lines = [];
+          let line = '';
+          for (const w of words) { if ((line + (line ? ' ' : '') + w).length > maxPer && line) { lines.push(line); line = w; } else line = line ? line + ' ' + w : w; }
+          if (line) lines.push(line);
+          const longest = Math.max(...lines.map(l => l.length));
+          const sw = Math.min(u * 0.95, area.w * 0.94 / longest), gap = sw * 0.14;
+          const showAll = solved || failed;
+          lines.forEach((l, li) => {
+            const lw = l.length * sw;
+            let x = cx - lw / 2;
+            for (const c of l) {
+              if (c !== ' ') {
+                const known = guessed.has(c);
+                ctx.fillStyle = known ? '#eef1ff' : showAll ? '#ff6b7a' : 'rgba(255,255,255,0)';
+                ctx.textAlign = 'center'; ctx.font = G.font(sw * 0.75);
+                if (known || showAll) ctx.fillText(c, x + sw / 2, y + sw * 0.78);
+                ctx.fillStyle = known ? '#44e05c' : 'rgba(255,255,255,0.55)';
+                ctx.fillRect(x + gap / 2, y + sw * 0.95, sw - gap, Math.max(2, sw * 0.07));
+              }
+              x += sw;
+            }
+            y += sw * 1.35;
+          });
+          return { x: cx - u * 5, y: area.y + u * 3, w: u * 10, h: u * 8, cell: u };
+        },
+      };
+      return inst;
+    },
+
+    drawMini(ctx, snap, x, y, cell, dim) {
+      const W = cell * 12, H = cell * 9;
+      const miss = +snap[0] || 0;
+      drawFigure(ctx, x + W / 2 - cell * 2.2, y + cell * 0.3, cell * 4.4, cell * 4.8, miss, dim, cell * 0.16);
+      const slots = snap.slice(1).split('');
+      if (!slots.length) return;
+      const per = Math.min(14, slots.length), rows = Math.ceil(slots.length / per);
+      const sw = Math.min(cell * 0.82, W * 0.95 / per);
+      for (let i = 0; i < slots.length; i++) {
+        const r = Math.floor(i / per), c = i % per;
+        const n = Math.min(per, slots.length - r * per);
+        const sx = x + (W - n * sw) / 2 + c * sw, sy = y + cell * 5.6 + r * sw * 1.25 + (3 - rows) * sw * 0.3;
+        const s = slots[i];
+        if (s === '.') continue;
+        ctx.globalAlpha = dim;
+        ctx.fillStyle = s === 'r' ? '#44e05c' : 'rgba(255,255,255,0.18)';
+        G.rr(ctx, sx + sw * 0.08, sy, sw * 0.84, sw * 0.84, sw * 0.12); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    },
+  });
+
+  function drawFigure(ctx, x, y, w, h, miss, alpha, lw) {
+    ctx.globalAlpha = alpha;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(1.5, lw);
+    // gallows
+    ctx.strokeStyle = '#7b83ad';
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.1, y + h); ctx.lineTo(x + w * 0.6, y + h);
+    ctx.moveTo(x + w * 0.25, y + h); ctx.lineTo(x + w * 0.25, y);
+    ctx.lineTo(x + w * 0.72, y); ctx.lineTo(x + w * 0.72, y + h * 0.12);
+    ctx.stroke();
+    // body parts
+    const px = x + w * 0.72;
+    ctx.strokeStyle = miss >= MAX_MISS ? '#ff5d6c' : '#eef1ff';
+    ctx.beginPath();
+    if (miss >= 1) { ctx.moveTo(px + h * 0.09, y + h * 0.21); ctx.arc(px, y + h * 0.21, h * 0.09, 0, Math.PI * 2); }
+    if (miss >= 2) { ctx.moveTo(px, y + h * 0.3); ctx.lineTo(px, y + h * 0.6); }
+    if (miss >= 3) { ctx.moveTo(px, y + h * 0.37); ctx.lineTo(px - w * 0.14, y + h * 0.5); }
+    if (miss >= 4) { ctx.moveTo(px, y + h * 0.37); ctx.lineTo(px + w * 0.14, y + h * 0.5); }
+    if (miss >= 5) { ctx.moveTo(px, y + h * 0.6); ctx.lineTo(px - w * 0.12, y + h * 0.8); }
+    if (miss >= 6) { ctx.moveTo(px, y + h * 0.6); ctx.lineTo(px + w * 0.12, y + h * 0.8); }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+})();
+</script>
+<script>
+/* 4 in a Row – one shared 7×6 board run by the overlay.
+ *   vs   : Chat (red, votes) vs the streamer (yellow, clicks a column on the overlay)
+ *   team : Team Red vs Team Yellow, both voting
+ * Each vote lasts VOTE_MS; the most-voted column is played (ties: random among them, no votes: random).
+ * Players score 100 per vote that matched the played move, +500 if their side wins. */
+(function () {
+  'use strict';
+  const G = window.Games;
+  const COLS = 7, ROWS = 6, VOTE_MS = 10000, MOVE_PAUSE = 700;
+  const RED = '#ff3d50', YEL = '#ffd820';
+  const DISC = [null, RED, YEL];
+
+  function winLine(b, r, c) {
+    const who = b[r * COLS + c];
+    for (const [dr, dc] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
+      const line = [[r, c]];
+      for (const s of [1, -1]) {
+        let rr = r + dr * s, cc = c + dc * s;
+        while (rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS && b[rr * COLS + cc] === who) { line.push([rr, cc]); rr += dr * s; cc += dc * s; }
+      }
+      if (line.length >= 4) return line.map(([a, d]) => a * COLS + d);
+    }
+    return null;
+  }
+  const legal = b => { const out = []; for (let c = 0; c < COLS; c++) if (!b[c]) out.push(c); return out; };
+
+  function makeHost(mode, opts) {
+    const rnd = G.rng(opts.seed ^ 0x4444);
+    const board = new Array(COLS * ROWS).fill(0);
+    const members = [];
+    const sideName = mode === 'vs' ? { 1: 'CHAT', 2: (opts.streamer || 'STREAMER').toUpperCase() } : { 1: 'TEAM RED', 2: 'TEAM YELLOW' };
+    let turn = 1, deadline = 0, turnAt = Infinity, votes = new Map(), last = null, win = null, over = false, overAt = 0, winner = 0;
+    let dirty = true, note = '', started = false, moves = 0, opened = false;
+    const H = {
+      sideName,
+      get over() { return over; }, get overAt() { return overAt; },
+      get headline() { return !over ? 'GAME ENDED' : winner ? sideName[winner] + ' WINS!' : 'DRAW!'; },
+      get winner() { return winner; },
+      addPlayer(p) {
+        if (!members.includes(p)) members.push(p);
+        if (mode === 'vs') p.team = 1;
+        else if (p.team !== 1 && p.team !== 2) {
+          const n1 = members.filter(q => q.team === 1).length, n2 = members.filter(q => q.team === 2).length;
+          p.team = n1 <= n2 ? 1 : 2;
+        }
+        p.sync = p.sync || 0; p.votes = p.votes || 0;
+        p.info = (mode === 'team' ? (p.team === 1 ? '🔴 ' : '🟡 ') : '') + p.sync + '/' + p.votes + ' in sync';
+        dirty = true;
+      },
+      begin(t) { tNow = t; started = true; startTurn(t); },
+      isVoting() { return started && !over && (mode === 'team' || turn === 1) && t0() >= turnAt; },
+      vote(p, c, t) {
+        tNow = t;
+        if (!H.isVoting() || p.team !== turn || !Number.isInteger(c) || c < 0 || c >= COLS || board[c]) return;
+        votes.set(p, c); dirty = true;
+        const eligible = members.filter(q => q.connected && q.team === turn);
+        if (eligible.length && eligible.every(q => votes.has(q))) deadline = Math.min(deadline, t + 1200);
+      },
+      streamerPick(c, t) {
+        if (mode !== 'vs' || over || !started || turn !== 2 || t < turnAt) return;
+        if (c >= 0 && c < COLS && !board[c]) play(c, t);
+      },
+      tick(t) {
+        tNow = t;
+        if (!started || over) return;
+        if (t < turnAt) return;
+        if (!opened) { opened = true; dirty = true; }   // voting just opened: tell everyone right away
+        const voting = mode === 'team' || turn === 1;
+        if (voting && t >= deadline) resolve(t);
+      },
+      takeDirty() { const d = dirty; dirty = false; return d; },
+      status(t) {
+        if (over) return H.headline;
+        if (t < turnAt) return 'NEXT MOVE…';
+        if (mode === 'vs' && turn === 2) return 'YOUR TURN — CLICK A COLUMN';
+        return sideName[turn] + ' IS VOTING  ·  ' + Math.ceil(Math.max(0, deadline - t) / 1000) + 's  ·  ' + votes.size + ' VOTE' + (votes.size === 1 ? '' : 'S');
+      },
+      tally() { const a = new Array(COLS).fill(0); for (const c of votes.values()) a[c]++; return a; },
+      msgFor(p, t) {
+        tNow = t;
+        return {
+          t: 'c4', mode, b: board.join(''), turn, team: p.team, names: sideName,
+          voting: H.isVoting() && p.team === turn, myTurn: started && !over && p.team === turn && (mode === 'team' || turn === 1), left: Math.max(0, deadline - t), wait: Math.max(0, turnAt - t),
+          tally: H.tally(), my: votes.has(p) ? votes.get(p) : -1, last, win, over, headline: over ? H.headline : '',
+          sc: p.score || 0, sync: p.sync || 0, votes: p.votes || 0, note,
+        };
+      },
+      render(ctx, area, U, t, phase) { renderBoard(ctx, area, U, t, H, board, last, win, turn, phase, mode, members); },
+      cols: null,
+      click(x, y, t) {
+        if (!H.cols) return;
+        const { bx, by, cell, bh } = H.cols;
+        if (y < by - cell * 1.5 || y > by + bh) return;
+        const c = Math.floor((x - bx) / cell);
+        if (c >= 0 && c < COLS) H.streamerPick(c, t);
+      },
+      get turnAt() { return turnAt; }, get deadline() { return deadline; }, get turn() { return turn; }, get votesMap() { return votes; },
+    };
+    let tNow = 0; const t0 = () => tNow; H.setNow = t => { tNow = t; };
+
+    function startTurn(t) {
+      votes = new Map(); opened = false; turnAt = t + (moves ? MOVE_PAUSE : 0); deadline = turnAt + VOTE_MS; note = ''; dirty = true;
+      if (mode === 'team' && !members.some(q => q.connected && q.team === turn)) { note = 'Nobody on ' + sideName[turn] + ' — random move'; deadline = turnAt + 1500; }
+    }
+    function resolve(t) {
+      const tal = H.tally(), ok = legal(board);
+      let best = -1, cand = [];
+      for (const c of ok) { if (tal[c] > best) { best = tal[c]; cand = [c]; } else if (tal[c] === best) cand.push(c); }
+      const c = cand.length ? cand[Math.floor(rnd() * cand.length)] : ok[Math.floor(rnd() * ok.length)];
+      // in-sync scoring for this side's voters
+      for (const [p, v] of votes) {
+        p.votes = (p.votes || 0) + 1;
+        if (v === c) { p.sync = (p.sync || 0) + 1; p.score = (p.score || 0) + 100; }
+        p.info = (mode === 'team' ? (p.team === 1 ? '🔴 ' : '🟡 ') : '') + p.sync + '/' + p.votes + ' in sync';
+      }
+      if (best <= 0) note = 'No votes — random move';
+      play(c, t);
+    }
+    function play(c, t) {
+      let r = ROWS - 1;
+      while (r >= 0 && board[r * COLS + c]) r--;
+      if (r < 0) return;
+      board[r * COLS + c] = turn; moves++;
+      last = { c, r, who: turn, at: t };
+      const w = winLine(board, r, c);
+      if (w) { win = w; winner = turn; end(t); return; }
+      if (!legal(board).length) { winner = 0; end(t); return; }
+      turn = turn === 1 ? 2 : 1;
+      startTurn(t);
+    }
+    function end(t) {
+      over = true; overAt = t; dirty = true;
+      for (const p of members) {
+        if (winner && p.team === winner) p.score = (p.score || 0) + 500;
+        p.state = 'done';
+      }
+    }
+    return H;
+  }
+
+  // ---------- drawing ----------
+  function drawGrid(ctx, bx, by, cell, board, win, last, t, alpha) {
+    const bw = cell * COLS, bh = cell * ROWS;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#2346b8'; G.rr(ctx, bx - cell * 0.12, by - cell * 0.12, bw + cell * 0.24, bh + cell * 0.24, cell * 0.25); ctx.fill();
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const i = r * COLS + c, v = +board[i] || 0;
+      const cx = bx + c * cell + cell / 2;
+      let cy = by + r * cell + cell / 2;
+      ctx.fillStyle = '#0b0e1d';
+      ctx.beginPath(); ctx.arc(cx, cy, cell * 0.4, 0, 7); ctx.fill();
+      if (v) {
+        if (last && last.c === c && last.r === r && t - last.at < 350) { // drop animation
+          const k = (t - last.at) / 350; cy = by + cell / 2 + (cy - by - cell / 2) * k * k;
+        }
+        ctx.fillStyle = DISC[v];
+        ctx.beginPath(); ctx.arc(cx, cy, cell * 0.38, 0, 7); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.22)';
+        ctx.beginPath(); ctx.arc(cx - cell * 0.1, cy - cell * 0.1, cell * 0.14, 0, 7); ctx.fill();
+        if (win && win.includes(i) && Math.floor(t / 300) % 2 === 0) {
+          ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(2, cell * 0.08);
+          ctx.beginPath(); ctx.arc(cx, cy, cell * 0.38, 0, 7); ctx.stroke();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  function drawTallies(ctx, bx, by, cell, tally, my, color) {
+    const max = Math.max(1, ...tally);
+    for (let c = 0; c < COLS; c++) {
+      const n = tally[c], x = bx + c * cell + cell * 0.18, w = cell * 0.64, maxH = cell * 1.0;
+      const h = n ? Math.max(cell * 0.12, maxH * n / max) : 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(x, by - cell * 0.25 - maxH, w, maxH);
+      if (h) { ctx.fillStyle = color; ctx.fillRect(x, by - cell * 0.25 - h, w, h); }
+      ctx.textAlign = 'center'; ctx.font = G.font(cell * 0.34);
+      if (n) { ctx.lineWidth = cell * 0.08; ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.strokeText(String(n), x + w / 2, by - cell * 0.35 - h); ctx.fillStyle = '#fff'; ctx.fillText(String(n), x + w / 2, by - cell * 0.35 - h); }
+      if (my === c) { ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(2, cell * 0.05); ctx.strokeRect(x - 2, by - cell * 0.25 - maxH - 2, w + 4, maxH + 4); }
+    }
+  }
+
+  function renderBoard(ctx, area, U, t, H, board, last, win, turn, phase, mode, members) {
+    H.setNow(t);
+    const side = mode === 'team' ? 330 * U : 300 * U;
+    const cell = Math.floor(Math.min((area.w - side * 2) / (COLS + 0.6), (area.h - 40 * U) / (ROWS + 2.2)));
+    const bw = cell * COLS, bh = cell * ROWS;
+    const bx = Math.round(area.x + (area.w - bw) / 2), by = Math.round(area.y + (area.h - bh) / 2 + cell * 0.9);
+    H.cols = { bx, by, cell, bh };
+    drawGrid(ctx, bx, by, cell, board, win, last, t, 1);
+    const voting = !H.over && t >= H.turnAt && (mode === 'team' || turn === 1);
+    if (voting) drawTallies(ctx, bx, by, cell, H.tally(), -1, DISC[turn]);
+    else if (!H.over && mode === 'vs' && turn === 2 && t >= H.turnAt) {
+      ctx.fillStyle = 'rgba(255,216,32,0.25)';
+      for (let c = 0; c < COLS; c++) if (!board[c]) { ctx.beginPath(); ctx.arc(bx + c * cell + cell / 2, by - cell * 0.6, cell * 0.3, 0, 7); ctx.fill(); }
+    }
+    // side panels
+    const panel = (x, who) => {
+      const isTurn = !H.over && turn === who;
+      ctx.fillStyle = 'rgba(8,10,22,0.82)'; G.rr(ctx, x, by - cell * 0.12, side - 30 * U, bh * 0.62, 18 * U); ctx.fill();
+      ctx.strokeStyle = isTurn ? DISC[who] : 'rgba(255,255,255,0.15)'; ctx.lineWidth = (isTurn ? 4 : 2) * U; ctx.stroke();
+      const cx = x + (side - 30 * U) / 2;
+      ctx.fillStyle = DISC[who]; ctx.beginPath(); ctx.arc(cx, by + 48 * U, 26 * U, 0, 7); ctx.fill();
+      ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = G.font(28 * U);
+      ctx.fillText(G.fit(ctx, H.sideName[who], side - 60 * U), cx, by + 112 * U);
+      ctx.font = G.font(20 * U); ctx.fillStyle = '#9aa3c7';
+      const n = mode === 'vs' && who === 2 ? '' : members.filter(p => p.team === who && p.connected).length + ' PLAYERS';
+      if (n) ctx.fillText(n, cx, by + 146 * U);
+      if (isTurn && t >= H.turnAt) {
+        ctx.fillStyle = DISC[who]; ctx.font = G.font(26 * U);
+        const msg = mode === 'vs' && who === 2 ? 'CLICK A COLUMN' : 'VOTE! ' + Math.ceil(Math.max(0, H.deadline - t) / 1000) + 's';
+        ctx.fillText(msg, cx, by + 196 * U);
+        if (!(mode === 'vs' && who === 2)) { // timer bar
+          const k = Math.max(0, Math.min(1, (H.deadline - t) / VOTE_MS)), bwid = side - 90 * U;
+          ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(cx - bwid / 2, by + 216 * U, bwid, 10 * U);
+          ctx.fillStyle = DISC[who]; ctx.fillRect(cx - bwid / 2, by + 216 * U, bwid * k, 10 * U);
+        }
+      }
+    };
+    panel(bx - side - cell * 0.3, 1);
+    panel(bx + bw + cell * 0.3 + 30 * U, 2);
+    // end banner + most in-sync voters
+    if (H.over || phase === 'results') {
+      const k = H.over ? Math.min(1, (t - H.overAt) / 400) : 1;
+      ctx.globalAlpha = k;
+      ctx.fillStyle = 'rgba(5,6,12,0.78)'; ctx.fillRect(area.x, by + bh * 0.3, area.w, 150 * U);
+      ctx.textAlign = 'center'; ctx.fillStyle = H.winner ? DISC[H.winner] : '#fff'; ctx.font = G.font(76 * U);
+      ctx.fillText(H.headline, area.x + area.w / 2, by + bh * 0.3 + 80 * U);
+      const top = members.filter(p => p.votes).sort((a, b) => b.sync - a.sync || a.votes - b.votes).slice(0, 3);
+      if (top.length) {
+        ctx.font = G.font(24 * U); ctx.fillStyle = '#c9cff0';
+        ctx.fillText('MOST IN SYNC: ' + top.map(p => p.name + ' (' + p.sync + ')').join(' · '), area.x + area.w / 2, by + bh * 0.3 + 124 * U);
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ---------- player side ----------
+  function makeClient(def, send) {
+    let S = null, recvAt = 0, cur = 3, padVer = 0, lastBoard = '';
+    let lay = null;
+    const inst = {
+      events: [],
+      get score() { return S ? S.sc : 0; },
+      get state() { return S && S.over ? 'done' : 'play'; },
+      get tb() { return S ? S.sync : 0; },
+      apply(m) {
+        const prevOver = S && S.over;
+        if (S && m.last && (!S.last || S.last.c !== m.last.c || S.last.r !== m.last.r)) m.last.at = performance.now();
+        else if (S && S.last && m.last) m.last.at = S.last.at;
+        else if (m.last) m.last.at = 0;
+        S = m; recvAt = performance.now();
+        if (m.over && !prevOver) inst.events.push({ text: m.headline, big: true });
+        if (S.my >= 0) cur = S.my;
+      },
+      canVote() { return !!S && S.myTurn && S.wait - (performance.now() - recvAt) <= 0 && S.left - (performance.now() - recvAt) > 0; },
+      vote(c) {
+        if (!S || !inst.canVote() || c < 0 || c >= COLS || +S.b[c]) return;
+        S.my = c; cur = c; send({ t: 'vote', c });
+      },
+      update() { },
+      key(code, down) {
+        if (!down) return /^(Digit|Numpad)[1-7]$/.test(code) || ['ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD', 'Space', 'Enter', 'ArrowDown', 'KeyS'].includes(code);
+        const n = /^(?:Digit|Numpad)([1-7])$/.exec(code);
+        if (n) { inst.vote(+n[1] - 1); return true; }
+        if (code === 'ArrowLeft' || code === 'KeyA') { cur = (cur + COLS - 1) % COLS; return true; }
+        if (code === 'ArrowRight' || code === 'KeyD') { cur = (cur + 1) % COLS; return true; }
+        if (code === 'Space' || code === 'Enter' || code === 'ArrowDown' || code === 'KeyS') { inst.vote(cur); return true; }
+        return false;
+      },
+      btn() { },
+      pointer(kind, x, y) {
+        if (kind !== 'down' || !lay) return;
+        const { bx, by, cell, bh } = lay;
+        if (y < by - cell * 1.6 || y > by + bh + cell * 0.3) return;
+        const c = Math.floor((x - bx) / cell);
+        if (c >= 0 && c < COLS) inst.vote(c);
+      },
+      releaseAll() { },
+      finish() { },
+      snapshot() { return S ? S.b : ''; },
+      info() { return ''; },
+      endText() { return S ? (S.headline || '') + ' · You voted with your side ' + S.sync + ' of ' + S.votes + ' times' : ''; },
+      render(ctx, area, view) {
+        const now = performance.now();
+        if (!S) {
+          ctx.textAlign = 'center'; ctx.fillStyle = '#9aa3c7'; ctx.font = G.font(22);
+          ctx.fillText('Waiting for the board…', area.x + area.w / 2, area.y + area.h / 2);
+          return { x: area.x, y: area.y, w: area.w, h: area.h, cell: 20 };
+        }
+        const cell = Math.floor(Math.min(area.w / (COLS + 0.5), area.h / (ROWS + 4.3), view.touch ? 1e9 : 90));
+        const bw = cell * COLS, bh = cell * ROWS;
+        const bx = Math.round(area.x + (area.w - bw) / 2);
+        const by = Math.round(area.y + (area.h - bh) / 2 + cell * 0.8);
+        lay = { bx, by, cell, bh };
+        const myColor = DISC[S.team];
+        // header
+        const left = Math.max(0, S.left - (now - recvAt)), wait = S.wait - (now - recvAt);
+        let head, sub = '', col = '#fff';
+        if (S.over) { head = S.headline; col = S.headline.startsWith(S.names[S.team]) ? '#44e05c' : S.headline === 'DRAW!' ? '#fff' : '#ff6b7a'; }
+        else if (wait > 0) head = 'Next move…';
+        else if (inst.canVote()) { head = S.my >= 0 ? 'Vote locked: column ' + (S.my + 1) : 'YOUR SIDE: VOTE NOW!'; sub = Math.ceil(left / 1000) + 's · tap a column to vote (you can change it)'; col = myColor; }
+        else if (S.mode === 'vs') { head = S.names[2] + ' is thinking…'; sub = 'Get ready to vote'; }
+        else { head = S.names[S.turn] + ' is voting… ' + Math.ceil(left / 1000) + 's'; sub = 'Your team votes next'; }
+        ctx.textAlign = 'center'; ctx.font = G.font(cell * 0.5); ctx.fillStyle = col;
+        ctx.fillText(G.fit(ctx, head, area.w - 10), bx + bw / 2, by - cell * 2.55);
+        if (sub) { ctx.font = G.font(cell * 0.3); ctx.fillStyle = '#9aa3c7'; ctx.fillText(G.fit(ctx, sub, area.w - 10), bx + bw / 2, by - cell * 2.1); }
+        // your side chip
+        ctx.font = G.font(cell * 0.3); ctx.fillStyle = myColor;
+        ctx.fillText('You are ' + (S.mode === 'vs' ? 'CHAT 🔴' : S.names[S.team] + (S.team === 1 ? ' 🔴' : ' 🟡')) + '  ·  ' + S.sync + '/' + S.votes + ' in sync  ·  ' + S.sc.toLocaleString() + ' pts', bx + bw / 2, by + bh + cell * 0.75);
+        drawGrid(ctx, bx, by, cell, S.b, S.win, S.last, now, 1);
+        if (!S.over && wait <= 0 && (S.mode === 'team' || S.turn === 1)) drawTallies(ctx, bx, by, cell, S.tally, S.team === S.turn ? S.my : -1, DISC[S.turn]);
+        if (inst.canVote() && !view.touch) { // keyboard cursor
+          ctx.fillStyle = myColor; ctx.globalAlpha = 0.5;
+          ctx.beginPath(); ctx.moveTo(bx + cur * cell + cell * 0.3, by - cell * 1.5); ctx.lineTo(bx + cur * cell + cell * 0.7, by - cell * 1.5); ctx.lineTo(bx + cur * cell + cell / 2, by - cell * 1.3); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+        if (S.note && !S.over) { ctx.font = G.font(cell * 0.28); ctx.fillStyle = '#9aa3c7'; ctx.fillText(S.note, bx + bw / 2, by + bh + cell * 1.2); }
+        return { x: bx, y: by, w: bw, h: bh, cell };
+      },
+    };
+    return inst;
+  }
+
+  const common = {
+    cols: COLS, rows: ROWS, defaultTime: 600, shared: true, ownBanners: true,
+    doneLabel: 'GAME OVER', outLabel: 'OUT',
+    howtoKeys: [
+      ['Click / tap a column', 'Vote where your side drops its disc'],
+      ['<kbd>1</kbd>–<kbd>7</kbd> or <kbd>←</kbd> <kbd>→</kbd> + <kbd>Space</kbd>', 'Vote with the keyboard'],
+      ['', 'Each vote lasts 10 seconds. The most-voted column is played. Get 4 in a row to win!'],
+    ],
+    howtoTouch: 'Tap a column to vote. Each vote lasts 10 seconds and the most-voted column is played. Get 4 in a row to win!',
+    createClient(send) { return makeClient(this, send); },
+    drawMini(ctx, snap, x, y, cell, dim) { drawGrid(ctx, x + cell * 0.12, y + cell * 0.12, cell * 0.965, snap && snap.length === 42 ? snap : '0'.repeat(42), null, null, 0, dim); },
+  };
+  G.register(Object.assign({}, common, {
+    id: 'fourvs', name: '4 in a Row: Chat vs Streamer', short: '4-ROW VS ME',
+    tagline: 'All of chat against the streamer on one big board. Vote on every move together!',
+    host(o) { return makeHost('vs', o); },
+  }));
+  G.register(Object.assign({}, common, {
+    id: 'fourteam', name: '4 in a Row: Team Battle', short: '4-ROW TEAMS',
+    tagline: 'Chat is split into Team Red and Team Yellow. Each team votes on its own moves.',
+    host(o) { return makeHost('team', o); },
+  }));
+})();
+</script>
+<script>
 /* Chat Arcade – networking.
  * Online: the OBS overlay is the "host" peer (PeerJS / WebRTC, free public broker + TURN),
  *         every player connects directly to it. No server of your own is needed.
@@ -1291,7 +1818,7 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
   let savedGame = ''; try { savedGame = localStorage.getItem('arcade-game') || ''; } catch (e) { }
   let gameDef = G.get(qs.get('game') || savedGame || 'blocks');
   let matchDef = gameDef;                             // game of the current / last round
-  let matchSeed = 0;
+  let matchSeed = 0, matchHost = null, lastShared = 0;   // matchHost: shared-board games (4 in a Row)
   const matchMs = d => TIME_OVERRIDE || d.defaultTime * 1000;
   document.title = G.brandText() + ' – Overlay';
 
@@ -1346,6 +1873,8 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
       p.lastSeen = now(); p.connected = true;
       if (m.t === 'ready') {
         if (phase === 'lobby') { p.ready = !!m.v; sendLobbyAll(); }
+      } else if (m.t === 'vote') {
+        if (matchHost && phase === 'playing') matchHost.vote(p, Math.floor(+m.c), now());
       } else if (m.t === 'snap') {
         if (p.inMatch && (phase === 'playing' || phase === 'countdown')) applySnap(p, m);
       } else if (m.t === 'bye') gone(p, true);
@@ -1368,6 +1897,14 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
     p.conn = id; p.connected = true; p.lastSeen = now(); p.lostAt = 0;
     conns.set(id, p);
     net.send(id, { t: 'welcome', name: p.name });
+    if (matchHost && (phase === 'countdown' || phase === 'playing')) {
+      // shared board: anyone can jump in at any time
+      if (!p.inMatch) Object.assign(p, { inMatch: true, state: 'play', ready: false, board: '', score: 0, info: '', tb: 0, ev: null, team: 0, sync: 0, votes: 0 });
+      matchHost.addPlayer(p); p.state = matchHost.over ? 'done' : 'play';
+      net.send(id, { t: 'start', game: matchDef.id, seed: matchSeed, countdown: Math.max(0, countdownEnd - now()), duration: 0 });
+      net.send(id, matchHost.msgFor(p, now()));
+      return;
+    }
     if (phase === 'lobby') { if (lobbyStart == null) lobbyStart = now(); sendLobbyAll(); }
     else if (phase === 'results') net.send(id, endMsg(p));
     else sendTick(p);
@@ -1417,11 +1954,17 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
     const seed = (Math.random() * 4294967296) >>> 0;
     players = players.filter(p => p.connected);
     if (!players.length) return;
-    for (const p of players) Object.assign(p, { inMatch: true, state: 'play', ready: false, board: '', score: 0, info: '', tb: 0, ev: null });
+    for (const p of players) Object.assign(p, { inMatch: true, state: 'play', ready: false, board: '', score: 0, info: '', tb: 0, ev: null, team: 0, sync: 0, votes: 0 });
     matchDef = gameDef; matchSeed = seed;
     phase = 'countdown';
     countdownEnd = now() + COUNTDOWN_MS;
-    matchEnd = countdownEnd + matchMs(matchDef);
+    matchEnd = matchDef.shared ? Infinity : countdownEnd + matchMs(matchDef);
+    matchHost = null;
+    if (matchDef.shared) {
+      matchHost = matchDef.host({ seed, streamer: roomLabel });
+      const order = players.slice(); for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+      for (const p of order) matchHost.addPlayer(p);
+    }
     for (const p of players) net.send(p.conn, { t: 'start', game: matchDef.id, seed, countdown: COUNTDOWN_MS, duration: matchMs(matchDef) });
     logEvent('match started', { players: players.length, game: matchDef.name });
   }
@@ -1437,13 +1980,13 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
 
   function endMsg(p) {
     const i = results.indexOf(p);
-    return { t: 'end', game: matchDef.id, top: results.slice(0, 10).map(q => ({ n: q.name, s: q.score })), rank: i + 1, total: results.length, score: p.score, reveal: matchDef.reveal ? matchDef.reveal(matchSeed) : '' };
+    return { t: 'end', game: matchDef.id, headline: matchHost ? matchHost.headline : '', top: results.slice(0, 10).map(q => ({ n: q.name, s: q.score })), rank: i + 1, total: results.length, score: p.score, reveal: matchDef.reveal ? matchDef.reveal(matchSeed) : '' };
   }
 
   function toLobby() {
     players = players.filter(p => p.connected);
     for (const p of players) Object.assign(p, { inMatch: false, ready: false, state: 'play', board: '', score: 0, info: '', tb: 0, ev: null });
-    phase = 'lobby'; results = [];
+    phase = 'lobby'; results = []; matchHost = null;
     lobbyStart = players.length ? now() : null;
     sendLobbyAll();
   }
@@ -1480,8 +2023,12 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
         if (t - lobbyStart >= LOBBY_MS && ready >= needFor(act.length)) startMatch();
       }
     }
-    if (phase === 'countdown' && t >= countdownEnd) phase = 'playing';
-    if (phase === 'playing' && (t >= matchEnd || stillPlaying() === 0)) endMatch();
+    if (phase === 'countdown' && t >= countdownEnd) { phase = 'playing'; if (matchHost) matchHost.begin(t); }
+    if (matchHost && phase === 'playing') {
+      matchHost.tick(t);
+      if (matchHost.takeDirty() || t - lastShared > 1000) { lastShared = t; for (const p of players) if (p.connected && p.inMatch) net.send(p.conn, matchHost.msgFor(p, t)); }
+      if (matchHost.over && t - matchHost.overAt > 4000) endMatch();
+    } else if (phase === 'playing' && (t >= matchEnd || stillPlaying() === 0)) endMatch();
     if (phase === 'results' && t >= resultsEnd) toLobby();
     if (t - lastBroadcast >= 1000) {
       lastBroadcast = t;
@@ -1489,7 +2036,7 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
       else if (phase !== 'results') for (const p of players) if (p.connected) sendTick(p);
     }
   }
-  setInterval(tick, 200);
+  setInterval(tick, 100);
 
   function pickGame(d) {
     if (phase !== 'lobby' || !d || d === gameDef) return;
@@ -1498,7 +2045,8 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
   }
   addEventListener('keydown', e => {
     const n = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
-    if (n) pickGame(G.list[+n[1] - 1]);
+    if (n && matchHost && phase === 'playing') matchHost.streamerPick(+n[1] - 1, now());
+    else if (n) pickGame(G.list[+n[1] - 1]);
     else if (e.code === 'KeyG') pickGame(G.list[(G.list.indexOf(gameDef) + 1) % G.list.length]);
     else if (e.code === 'KeyF' && phase === 'lobby' && lobbyPlayers().length) startMatch();
     else if (e.code === 'KeyE') endMatch();
@@ -1537,6 +2085,11 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
       const ph = Math.round(58 * U);
       drawPicker(area.x, area.y, area.w, ph, U, t);
       area.y += ph + m; area.h -= ph + m;
+    }
+    if (matchHost && phase !== 'lobby') {
+      matchHost.render(ctx, area, U, t, phase);
+      if (phase === 'countdown') bigCenter(String(Math.ceil((countdownEnd - t) / 1000)), W, H, U);
+      return;
     }
     if (!fields.length) { drawEmpty(area, U); return; }
 
@@ -1582,7 +2135,7 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
     let tx = x + 22 * U + ctx.measureText(b0).width;
     ctx.fillStyle = g; ctx.fillText(b1, tx, cy); tx += ctx.measureText(b1).width;
     ctx.font = font(24 * U); ctx.fillStyle = '#ffd820';
-    ctx.fillText('  ·  ' + (phase === 'lobby' ? gameDef : matchDef).name.toUpperCase(), tx, cy);
+    ctx.fillText('  ·  ' + ((phase === 'lobby' ? gameDef : matchDef).short || (phase === 'lobby' ? gameDef : matchDef).name).toUpperCase(), tx, cy);
     // join info
     let rx = x + w - 22 * U;
     const part = (txt, f, col) => { ctx.font = font(f * U); ctx.fillStyle = col; ctx.fillText(txt, rx, cy); rx -= ctx.measureText(txt).width; };
@@ -1602,6 +2155,10 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
           : `NEED ${needFor(act.length)} READY  ·  ${ready}/${act.length}`;
       }
     } else if (phase === 'countdown') s = 'GET READY…';
+    else if (matchHost && (phase === 'playing' || phase === 'results')) {
+      s = phase === 'results' ? `${matchHost.headline}  ·  NEXT ROUND IN ${fmt(resultsEnd - t)}` : matchHost.status(t) + `  ·  ${matchPlayers().filter(p => p.connected).length} PLAYERS`;
+      if (!matchHost.over && matchHost.turn === 2 && matchDef.id === 'fourvs') ctx.fillStyle = '#ffd820';
+    }
     else if (phase === 'playing') {
       const mp = matchPlayers(), waiting = act.filter(p => !p.inMatch).length;
       s = `${fmt(matchEnd - t)} LEFT  ·  ${stillPlaying()}/${mp.length} PLAYING` + (waiting ? `  ·  ${waiting} WAITING` : '');
@@ -1619,20 +2176,24 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
   // ---- clickable game picker (OBS: right-click the source → Interact, then click) ----
   let pickRects = [], mouseAt = -1e9, mouseX = -1, mouseY = -1;
   function drawPicker(x, y, w, h, U, t) {
-    const pw = 190 * U, gap = 12 * U, label = 'NEXT GAME';
+    const gap = 10 * U, label = 'NEXT GAME';
     ctx.font = font(20 * U);
-    const lw = ctx.measureText(label).width + 24 * U;
-    const total = lw + G.list.length * pw + (G.list.length - 1) * gap;
+    const lw = ctx.measureText(label).width + 20 * U;
+    ctx.font = font(21 * U);
+    const pws = G.list.map(d => ctx.measureText((d.short || d.name).toUpperCase()).width + 38 * U);
+    let total = lw + pws.reduce((a, b) => a + b, 0) + (G.list.length - 1) * gap;
+    const shrink = Math.min(1, (w - 20 * U) / total); total *= shrink;
     let px = x + (w - total) / 2;
     ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillStyle = '#9aa3c7';
     ctx.fillText(label, px, y + h / 2); px += lw;
     G.list.forEach((d, i) => {
+      const pw = pws[i] * shrink;
       const sel = d === gameDef, hover = mouseX >= px && mouseX <= px + pw && mouseY >= y && mouseY <= y + h && t - mouseAt < 3000;
       ctx.fillStyle = sel ? 'rgba(255,216,32,0.95)' : hover ? 'rgba(60,66,110,0.95)' : 'rgba(10,12,26,0.82)';
       rr(px, y, pw, h, h / 2); ctx.fill();
       ctx.lineWidth = 2 * U; ctx.strokeStyle = sel ? GOLD : 'rgba(180,76,255,0.5)'; ctx.stroke();
-      ctx.textAlign = 'center'; ctx.font = font(24 * U); ctx.fillStyle = sel ? '#14121f' : '#fff';
-      ctx.fillText(d.name.toUpperCase(), px + pw / 2, y + h / 2 + 1);
+      ctx.textAlign = 'center'; ctx.font = font(21 * U * shrink); ctx.fillStyle = sel ? '#14121f' : '#fff';
+      ctx.fillText((d.short || d.name).toUpperCase(), px + pw / 2, y + h / 2 + 1);
       pickRects.push({ x: px, y, w: pw, h, d });
       px += pw + gap;
     });
@@ -1648,6 +2209,7 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
     mouseX = e.clientX; mouseY = e.clientY; mouseAt = now();
     const r = pickRects.find(r => e.clientX >= r.x && e.clientX <= r.x + r.w && e.clientY >= r.y && e.clientY <= r.y + r.h);
     if (r) pickGame(r.d);
+    else if (matchHost && phase === 'playing') matchHost.click(e.clientX, e.clientY, now());
   });
   addEventListener('pointermove', () => {
     const r = pickRects.find(r => mouseX >= r.x && mouseX <= r.x + r.w && mouseY >= r.y && mouseY <= r.y + r.h);
@@ -1759,7 +2321,7 @@ window.WORDS_ALLOWED='aaliiabacaabackabaftabaseabashabateabbeyabbotabeamabeleabe
 
   (function loop() { render(); requestAnimationFrame(loop); })();
   // expose for debugging in the browser console
-  window.cpt = { get players() { return players; }, get phase() { return phase; }, get game() { return gameDef.id; }, startMatch, endMatch, toLobby, pickGame: id => pickGame(G.get(id)) };
+  window.cpt = { get host() { return matchHost; }, get players() { return players; }, get phase() { return phase; }, get game() { return gameDef.id; }, startMatch, endMatch, toLobby, pickGame: id => pickGame(G.get(id)) };
 })();
 </script>
 </body>
