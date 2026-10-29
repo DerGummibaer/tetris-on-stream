@@ -88,6 +88,17 @@ html.touch body.playing { touch-action: none; }
   #padR { right: calc(10px + env(safe-area-inset-right)); width: min(24vw, 190px); grid-template-rows: 76px 44px; }
 }
 @media (max-width: 420px) { .card { padding: 20px 16px; } h1 { margin-bottom: 16px; } .controls { font-size: 13px; } }
+
+/* ---------- solo ---------- */
+button.big.alt { background: linear-gradient(90deg, #2a2f4a, #3a3f60); }
+.or { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; margin: 14px 0; }
+.or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.solo-btns { display: grid; gap: 10px; margin-top: 16px; }
+.linkbtn { background: none; border: 0; color: var(--muted); font: 600 15px Inter, sans-serif; cursor: pointer; padding: 8px; text-decoration: underline; }
+#s-solo { background: rgba(16,19,36,.94); }
+.pausebtn { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: 10px; z-index: 6; width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: rgba(40,46,80,.72); color: #fff; font-size: 16px; cursor: pointer; }
+html.touch .pausebtn { top: auto; bottom: calc(150px + env(safe-area-inset-bottom)); right: 10px; }
+@media (orientation: landscape) { html.touch .pausebtn { bottom: auto; top: 10px; } }
 </style>
 </head>
 <body>
@@ -101,7 +112,9 @@ html.touch body.playing { touch-action: none; }
       <label>Your name <input id="name" maxlength="16" required spellcheck="false" placeholder="your chat name"></label>
       <button type="submit" class="big">Join the match</button>
     </form>
-    <p class="hint">Use your chat name so the stream knows who's who. Works with keyboard or touch.</p>
+    <div class="or"><span>or</span></div>
+    <button type="button" id="soloBtn" class="big alt">Play solo</button>
+    <p class="hint">Use your chat name so the stream knows who's who. Solo needs no stream and has no time limit. Works with keyboard or touch.</p>
     <p class="hint small"><a href="setup" style="color:var(--accent2)">Streamer? Get your overlay here →</a></p>
   </section>
 
@@ -133,6 +146,17 @@ html.touch body.playing { touch-action: none; }
     <p class="hint">You're in for the next round — stay on this page.</p>
   </section>
 
+  <section id="s-solo" class="card hidden">
+    <h2 id="soloTitle">Paused</h2>
+    <p id="soloText" class="you"></p>
+    <div class="solo-btns">
+      <button id="soloResume" class="big">Resume</button>
+      <button id="soloRestart" class="big alt">New game</button>
+      <button id="soloMenu" class="linkbtn">Back to menu</button>
+    </div>
+    <p class="hint small keys-only"><kbd>P</kbd>/<kbd>Esc</kbd> pause · <kbd>R</kbd> new game</p>
+  </section>
+
   <section id="s-results" class="card hidden">
     <h2>Results</h2>
     <p id="resYou" class="you"></p>
@@ -154,6 +178,8 @@ html.touch body.playing { touch-action: none; }
     <button data-a="hard" class="wide drop">DROP</button>
   </div>
 </div>
+
+<button id="pauseBtn" class="pausebtn hidden" aria-label="Pause">❚❚</button>
 
 <div id="netWarn" class="netwarn hidden">Connection to the stream lost — reconnecting…</div>
 
@@ -661,7 +687,7 @@ html.touch body.playing { touch-action: none; }
   const qs = new URLSearchParams(location.search);
   const LOCAL = qs.has('local');
   const $ = id => document.getElementById(id);
-  const SCREENS = ['join', 'status', 'lobby', 'wait', 'results'];
+  const SCREENS = ['join', 'status', 'lobby', 'wait', 'results', 'solo'];
   // phones / tablets get on-screen buttons (?touch forces them on, ?keys forces them off)
   const TOUCH = qs.has('touch') || (!qs.has('keys') && (matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 && !matchMedia('(pointer: fine)').matches));
   document.documentElement.classList.toggle('touch', TOUCH);
@@ -677,6 +703,9 @@ html.touch body.playing { touch-action: none; }
   let game = null, startAt = 0, endAt = 0, gameActive = false, rankInfo = null;
   let lastSnap = '', lastSnapAt = 0, sentScore = -1, sentAlive = true, pendingEv = null;
   const floaters = [];
+  // solo mode
+  let solo = false, soloElapsed = 0, overShownAt = 0, best = 0;
+  try { best = +localStorage.getItem('cpt-best') || 0; } catch (e) { }
 
   // ---------- join ----------
   let savedRoom = '';
@@ -698,6 +727,54 @@ html.touch body.playing { touch-action: none; }
     document.activeElement && document.activeElement.blur();
     connect();
   });
+
+  // ---------- solo play ----------
+  $('soloBtn').addEventListener('click', e => { e.currentTarget.blur(); startSolo(); });
+  $('soloResume').addEventListener('click', e => { e.currentTarget.blur(); resumeSolo(); });
+  $('soloRestart').addEventListener('click', e => { e.currentTarget.blur(); startSolo(); });
+  $('soloMenu').addEventListener('click', e => { e.currentTarget.blur(); soloMenu(); });
+  $('pauseBtn').addEventListener('click', e => { e.currentTarget.blur(); pauseSolo(); });
+  $('pauseBtn').addEventListener('pointerdown', e => e.stopPropagation());
+
+  function startSolo() {
+    solo = true;
+    myName = cleanName($('name').value) || 'You';
+    game = new T.Game((Math.random() * 4294967296) >>> 0);
+    startAt = performance.now() + 2000; endAt = Infinity;
+    gameActive = true; rankInfo = null; floaters.length = 0; soloElapsed = 0; overShownAt = 0;
+    mode = 'game'; show(null);
+    $('pauseBtn').classList.remove('hidden');
+  }
+  function pauseSolo() {
+    if (!solo || mode !== 'game' || !game || !game.active) return;
+    game.releaseAll();
+    mode = 'solo'; show('solo');
+    $('soloTitle').textContent = 'Paused';
+    $('soloText').textContent = 'Score ' + game.score.toLocaleString() + ' · Best ' + Math.max(best, game.score).toLocaleString();
+    $('soloResume').classList.remove('hidden');
+    $('pauseBtn').classList.add('hidden');
+  }
+  function resumeSolo() {
+    if (!solo || !game || !game.active) return;
+    startAt = performance.now() + 3000; // short countdown after a pause
+    mode = 'game'; show(null);
+    $('pauseBtn').classList.remove('hidden');
+  }
+  function soloOver() {
+    const newBest = game.score > best;
+    if (newBest) { best = game.score; try { localStorage.setItem('cpt-best', String(best)); } catch (e) { } }
+    mode = 'solo'; show('solo');
+    $('soloTitle').textContent = newBest && best > 0 ? 'New best!' : 'Game over';
+    $('soloText').textContent = 'Score ' + game.score.toLocaleString() + ' · ' + game.lines + ' lines · Level ' + game.level + ' · Time ' + fmt(soloElapsed) + (newBest ? '' : ' · Best ' + best.toLocaleString());
+    $('soloResume').classList.add('hidden');
+    $('pauseBtn').classList.add('hidden');
+  }
+  function soloMenu() {
+    solo = false; game = null; gameActive = false;
+    $('pauseBtn').classList.add('hidden');
+    mode = 'join'; show('join');
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pauseSolo(); });
 
   function setStatus(t) {
     $('statusText').textContent = t;
@@ -824,6 +901,10 @@ html.touch body.playing { touch-action: none; }
   addEventListener('keydown', e => {
     if (typing()) return;
     if (mode === 'lobby' && e.code === 'KeyR' && !e.repeat) { toggleReady(); return; }
+    if (solo && !e.repeat) {
+      if (e.code === 'KeyP' || e.code === 'Escape') { e.preventDefault(); if (mode === 'game') pauseSolo(); else if (game && game.active) resumeSolo(); return; }
+      if (e.code === 'KeyR' && (mode === 'solo' || (game && game.over))) { startSolo(); return; }
+    }
     const a = KEYMAP[e.code];
     if (!a) return;
     if (mode === 'game' || mode === 'lobby') e.preventDefault();
@@ -873,9 +954,14 @@ html.touch body.playing { touch-action: none; }
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(100, now - last); last = now;
-    if (game && gameActive && now >= startAt && game.active) {
+    if (game && gameActive && mode === 'game' && now >= startAt && game.active) {
       game.update(dt);
+      if (solo) soloElapsed += dt;
       if (now >= endAt) { game.finished = true; game.releaseAll(); }
+    }
+    if (solo && game && game.over && mode === 'game') {
+      if (!overShownAt) overShownAt = now;
+      else if (now - overShownAt > 1400) soloOver();
     }
     if (game && game.events.length) {
       for (const ev of game.events) { floaters.push({ text: ev.text, t: now, pts: ev.pts }); if (ev.big) pendingEv = ev.text; }
@@ -899,7 +985,8 @@ html.touch body.playing { touch-action: none; }
     if (!game) { drawIdle(now, W, H); return; }
 
     const left = Math.max(0, endAt - now);
-    const timeTxt = fmt(now < startAt ? endAt - startAt : left), timeCol = left < 15000 && now >= startAt ? '#ff6b7a' : '#fff';
+    const timeTxt = solo ? fmt(soloElapsed) : fmt(now < startAt ? endAt - startAt : left);
+    const timeCol = !solo && left < 15000 && now >= startAt ? '#ff6b7a' : '#fff';
     let cell, bx, by;
 
     if (!TOUCH) {
@@ -922,6 +1009,7 @@ html.touch body.playing { touch-action: none; }
       stat('LINES', game.lines, ox, oy + cell * 10.6, cell);
       stat('TIME', timeTxt, nx, oy + cell * 14.6, cell, timeCol);
       if (rankInfo) stat('RANK', '#' + rankInfo.rank + ' / ' + rankInfo.total, nx, oy + cell * 17.2, cell, rankInfo.rank === 1 ? '#ffd820' : '#fff');
+      else if (solo) stat('BEST', Math.max(best, game.score).toLocaleString(), nx, oy + cell * 17.2, cell, game.score > best && best > 0 ? '#ffd820' : '#fff');
       ctx.textAlign = 'center'; ctx.fillStyle = '#9aa3c7'; ctx.font = font(cell * 0.6);
       ctx.fillText(myName, bx + bw / 2, oy - cell * 0.35);
     } else {
@@ -944,6 +1032,7 @@ html.touch body.playing { touch-action: none; }
       y += cell * 7.1;
       const items = [['SCORE', game.score.toLocaleString(), '#fff'], ['TIME', timeTxt, timeCol], ['LEVEL', game.level, '#fff'], ['LINES', game.lines, '#fff']];
       if (rankInfo) items.push(['RANK', '#' + rankInfo.rank + '/' + rankInfo.total, rankInfo.rank === 1 ? '#ffd820' : '#fff']);
+      else if (solo) items.push(['BEST', Math.max(best, game.score).toLocaleString(), game.score > best && best > 0 ? '#ffd820' : '#fff']);
       for (const [n, v, c] of items) { statFit(n, v, sx, y, cw, cell, c); y += cell * 1.55; }
     }
 
